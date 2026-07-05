@@ -24,6 +24,7 @@ import { processEvent } from "@/lib/topdeck/event-processor";
 import { enrichTournamentState } from "@/lib/topdeck/enrichment";
 import { publish, subscriberCount } from "@/lib/topdeck/sse-publisher";
 import { getTournamentState } from "@/lib/topdeck/tournament-state";
+import { notify } from "@/lib/discord/notifier";
 import type { TopDeckWebhookEvent } from "@/lib/topdeck/types";
 
 // Disable the default Next.js body parser so we can read the raw body
@@ -131,6 +132,11 @@ async function processAsync(event: TopDeckWebhookEvent, rawBody: string) {
 
   // ── Publish to SSE subscribers ──────────────────────────────────────────
   publish(event.tid!, updatedState);
+
+  // ── Notify Discord (fire-and-forget; errors are swallowed inside notify) ─
+  notify(event, updatedState).catch((err) =>
+    console.error(`${label} — Discord notifier threw unexpectedly:`, err)
+  );
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

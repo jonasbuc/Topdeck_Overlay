@@ -80,7 +80,7 @@ export async function handleParking(
   };
 }
 
-function buildParkingEmbed(
+export function buildParkingEmbed(
   results: ParkingResult[],
   location: TopDeckLocation,
   tournamentName: string
@@ -112,7 +112,7 @@ function buildParkingEmbed(
   };
 }
 
-function buildAddress(location: TopDeckLocation): string {
+export function buildAddress(location: TopDeckLocation): string {
   return [location.address, location.city, location.state, location.country]
     .filter(Boolean)
     .join(", ");
