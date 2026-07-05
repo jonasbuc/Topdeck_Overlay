@@ -81,6 +81,7 @@ function makeMinimalState(
     players: [],
     droppedPlayers: [],
     waitlistPlayers: [],
+    roundHistory: [],
     participantCount: null,
     winner: null,
     finished: false,
