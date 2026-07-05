@@ -18,6 +18,8 @@ Receives signed [TopDeck.gg](https://topdeck.gg) webhooks and turns them into li
 - **Round history viewer** — browse pairings and standings from every completed round
 - **Winner screen** — full-screen champion celebration with link to analytics
 - **Overtime clock** — counts up as `+MM:SS` once regulation time expires
+- **Venue parking** — auto-fetches nearby parking from OpenStreetMap (Overpass) or Google Places; cached 1 hr; shown on the dashboard
+- **Discord bot** — link any tournament to a Discord channel; receive live pairings, round-start timers, standings, and parking info via slash commands and automatic post-round notifications
 
 ---
 
@@ -44,13 +46,15 @@ All overlays are transparent-background browser sources designed for OBS at 1920
 topdeck-live/
 ├── app/
 │   ├── api/
-│   │   ├── webhooks/topdeck/route.ts   ← Signed webhook receiver
-│   │   ├── live/[tid]/route.ts         ← SSE stream per tournament
-│   │   └── tournaments/[tid]/route.ts  ← REST state snapshot
-│   ├── dashboard/[tid]/page.tsx        ← Live coverage dashboard
-│   ├── overlay/[tid]/                  ← OBS overlay pages
-│   ├── analytics/[tid]/page.tsx        ← Post-tournament stats
-│   └── venue/[tid]/page.tsx            ← Venue display (standings + clock)
+│   │   ├── webhooks/topdeck/route.ts       ← Signed webhook receiver + Discord notifier
+│   │   ├── live/[tid]/route.ts             ← SSE stream per tournament
+│   │   ├── tournaments/[tid]/route.ts      ← REST state snapshot
+│   │   ├── tournaments/[tid]/parking/      ← Parking API (geocode + cache + provider)
+│   │   └── discord/interactions/route.ts  ← Discord slash-command interaction handler
+│   ├── dashboard/[tid]/page.tsx            ← Live coverage dashboard (incl. parking)
+│   ├── overlay/[tid]/                      ← OBS overlay pages
+│   ├── analytics/[tid]/page.tsx            ← Post-tournament stats
+│   └── venue/[tid]/page.tsx                ← Venue display (standings + clock)
 ├── components/
 │   ├── RoundClock.tsx
 │   ├── PairingsTable.tsx
@@ -59,24 +63,192 @@ topdeck-live/
 │   ├── PlayerRoster.tsx
 │   ├── DroppedPlayers.tsx
 │   ├── WinnerScreen.tsx
-│   └── RoundHistoryViewer.tsx
+│   ├── RoundHistoryViewer.tsx
+│   └── ParkingSection.tsx                  ← Collapsible parking card (dashboard)
 ├── hooks/
-│   └── useTournamentLive.ts            ← SSE hook
+│   └── useTournamentLive.ts                ← SSE hook
 ├── lib/
 │   ├── env.ts
 │   ├── prisma.ts
-│   └── topdeck/
-│       ├── types.ts
-│       ├── verify-signature.ts
-│       ├── event-store.ts
-│       ├── event-processor.ts
-│       ├── tournament-state.ts
-│       ├── analytics.ts
-│       └── sse-publisher.ts
+│   ├── topdeck/
+│   │   ├── types.ts
+│   │   ├── verify-signature.ts
+│   │   ├── event-store.ts
+│   │   ├── event-processor.ts
+│   │   ├── tournament-state.ts
+│   │   ├── analytics.ts
+│   │   └── sse-publisher.ts
+│   ├── parking/
+│   │   ├── types.ts                        ← GeoPoint, ParkingResult, ParkingProvider
+│   │   ├── distance.ts                     ← Haversine + walking minutes
+│   │   ├── geocoder.ts                     ← Nominatim address → coordinates
+│   │   ├── cache.ts                        ← DB-backed 1-hr cache
+│   │   ├── factory.ts                      ← createParkingProvider()
+│   │   └── providers/
+│   │       ├── overpass.ts                 ← Free OpenStreetMap provider
+│   │       └── google-places.ts            ← Google Places API v1 provider
+│   └── discord/
+│       ├── types.ts                        ← DiscordTournamentSettings, embeds
+│       ├── rest.ts                         ← Bot REST client (send messages)
+│       ├── verify.ts                       ← Ed25519 signature verification
+│       ├── config-service.ts               ← DiscordLink CRUD
+│       ├── notifier.ts                     ← Webhook → Discord post bridge
+│       └── commands/
+│           ├── index.ts                    ← Command definitions
+│           ├── link.ts                     ← /topdeck link
+│           ├── unlink.ts                   ← /topdeck unlink
+│           ├── standings.ts                ← /topdeck standings
+│           ├── pairings.ts                 ← /topdeck pairings
+│           ├── parking.ts                  ← /topdeck parking
+│           ├── settings.ts                 ← /topdeck settings
+│           └── test.ts                     ← /topdeck test
+├── scripts/
+│   ├── send-test-event.ts                  ← Local webhook testing
+│   └── register-discord-commands.ts        ← Slash command registration
 ├── prisma/schema.prisma
 ├── vercel.json
 └── __tests__/
 ```
+
+---
+
+## Venue parking
+
+The dashboard automatically shows nearby parking whenever a tournament has a venue location.  
+No configuration is needed — the default provider uses free OpenStreetMap data.
+
+### How it works
+
+1. The dashboard sidebar has a **Parking** section (collapsed by default)
+2. On first expand, it calls `GET /api/tournaments/[tid]/parking`
+3. The API resolves the venue coordinates (direct `lat/lng` or Nominatim geocode)
+4. Results are fetched from Overpass/OSM, cached for 1 hour, and returned
+5. Each result shows distance, walking time, price info, accessibility, and a Google Maps navigation link
+
+### Choosing a parking provider
+
+| Provider | Cost | Quality | Setup |
+|---|---|---|---|
+| `overpass` *(default)* | Free | Good — community-sourced OSM data | None — works out of the box |
+| `google_places` | Paid per call | Excellent — hours, ratings, photos | Requires a Google Maps API key |
+
+To switch to Google Places, set in `.env` / Vercel environment variables:
+
+```env
+PARKING_PROVIDER="google_places"
+GOOGLE_MAPS_API_KEY="AIza..."
+```
+
+Enable **Places API (New)** in the [Google Cloud Console](https://console.cloud.google.com) for your key.  
+If `GOOGLE_MAPS_API_KEY` is missing when `google_places` is selected, the app silently falls back to Overpass.
+
+### Discord parking command
+
+The `/topdeck parking` slash command posts a parking embed directly in Discord.  
+It shares the same cache as the dashboard, so repeated calls are instant.
+
+---
+
+## Discord bot
+
+Link any tournament to a Discord channel and receive automatic live updates — pairings, round timers, standings, and parking info.
+
+### Quick overview
+
+| What | Detail |
+|---|---|
+| Interaction model | HTTP POST (serverless-compatible, no persistent gateway) |
+| Signature verification | Ed25519 via [tweetnacl](https://github.com/dchest/tweetnacl-js) |
+| Database | One `DiscordLink` row per linked tournament |
+| Auto-posts | Configurable per link via `/topdeck settings` |
+
+### Step 1 — Create a Discord application
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click **New Application** → name it (e.g. "TopDeck Live")
+3. Go to **Bot** → click **Add Bot** → confirm
+4. Under **Bot → Token** click **Reset Token**, copy it → `DISCORD_BOT_TOKEN`
+5. Under **General Information** copy **Application ID** → `DISCORD_CLIENT_ID`
+6. Under **General Information** copy **Public Key** → `DISCORD_PUBLIC_KEY`
+
+### Step 2 — Invite the bot to your server
+
+Build the invite URL (replace `YOUR_CLIENT_ID`):
+
+```
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2048&scope=bot%20applications.commands
+```
+
+`2048` is the **Send Messages** permission. Paste the URL in a browser and invite to your server.
+
+### Step 3 — Set environment variables
+
+```env
+DISCORD_BOT_TOKEN="Bot token from step 1"
+DISCORD_CLIENT_ID="Application ID from step 1"
+DISCORD_PUBLIC_KEY="Public key from step 1"
+DISCORD_GUILD_ID="Your server ID (for instant dev registration — omit in prod)"
+```
+
+To find your **Guild ID**: in Discord, enable Developer Mode (*Settings → Advanced*), then right-click your server icon → **Copy Server ID**.
+
+### Step 4 — Register slash commands
+
+Run once after setting env vars. Uses your guild for instant registration (dev), or registers globally for production (~1 hour to propagate):
+
+```bash
+# Development (instant — guild-specific)
+DISCORD_GUILD_ID="your_server_id" npm run discord:register
+
+# Production (global — omit DISCORD_GUILD_ID in .env)
+npm run discord:register
+```
+
+### Step 5 — Set the interactions endpoint URL
+
+1. In the Discord Developer Portal → your app → **General Information**
+2. Paste your deployment URL into **Interactions Endpoint URL**:
+
+```
+https://your-app.vercel.app/api/discord/interactions
+```
+
+3. Discord will send a `PING` request — the app must respond `{"type":1}` within 3 seconds to validate the endpoint.  
+   Make sure the app is deployed and `DISCORD_PUBLIC_KEY` is set before saving.
+
+> For local dev, expose port 3000 with [localtunnel](https://github.com/localtunnel/localtunnel):
+> ```bash
+> npx localtunnel --port 3000
+> # Use: https://some-words.loca.lt/api/discord/interactions
+> ```
+
+### Slash commands
+
+All commands are under the `/topdeck` group.
+
+| Command | Permission | Description |
+|---|---|---|
+| `/topdeck link <tid>` | Manage Channels | Link the current channel to a tournament |
+| `/topdeck unlink` | Manage Channels | Unlink the tournament from this channel |
+| `/topdeck standings [top]` | Everyone | Post current standings (optional: show top N) |
+| `/topdeck pairings` | Everyone | Post current round pairings |
+| `/topdeck parking` | Everyone | Post nearby parking for the venue |
+| `/topdeck settings` | Everyone | Show current notification settings (ephemeral) |
+| `/topdeck test` | Manage Channels | Post a test embed to verify the bot is working |
+
+### Automatic notifications
+
+Once a channel is linked, the bot posts automatically when TopDeck events arrive:
+
+| Event | Setting | Discord message |
+|---|---|---|
+| `round.published` | `postPairings` (default: on) | Pairings embed(s) for the new round |
+| `round.started` | `postRoundStarted` (default: on) | "Round X has started!" with timer |
+| `round.ended` | `postStandings` (default: on) | Standings embed after each round |
+| `tournament.finished` | `postStandings` (default: on) | Final standings + winner |
+| `tournament.checkin_started` | `postParking` (default: on) | Parking options near the venue |
+
+Per-tournament settings are stored in the database and adjustable via `/topdeck settings` (view) — edit them directly in the `DiscordLink.settings` JSON column for now.
 
 ---
 
@@ -101,10 +273,15 @@ In the Vercel dashboard → **Settings → Environment Variables**, add:
 
 | Variable | Value |
 |----------|-------|
-| `TOPDECK_WEBHOOK_SECRET` | `whsec_...` from TopDeck portal (see below) |
+| `TOPDECK_WEBHOOK_SECRET` | `whsec_...` from TopDeck portal |
 | `TOPDECK_API_KEY` | Your TopDeck API key (optional — for enrichment) |
 | `DATABASE_URL` | Your production database URL (see note below) |
 | `NEXT_PUBLIC_BASE_URL` | `https://your-app.vercel.app` |
+| `DISCORD_BOT_TOKEN` | Bot token (optional — Discord features) |
+| `DISCORD_CLIENT_ID` | Application ID (optional — Discord features) |
+| `DISCORD_PUBLIC_KEY` | Ed25519 public key (optional — Discord features) |
+| `PARKING_PROVIDER` | `"overpass"` (default) or `"google_places"` |
+| `GOOGLE_MAPS_API_KEY` | Google Maps key (only if `PARKING_PROVIDER=google_places`) |
 
 > ⚠️ **SQLite does not work on Vercel** (serverless, no persistent filesystem).  
 > Use one of these zero-config alternatives:
@@ -266,6 +443,8 @@ npm run test:watch  # watch mode
 | `POST` | `/api/webhooks/topdeck` | Receives signed TopDeck events |
 | `GET`  | `/api/live/[tid]` | SSE stream — real-time state updates |
 | `GET`  | `/api/tournaments/[tid]` | REST snapshot of current state |
+| `GET`  | `/api/tournaments/[tid]/parking` | Nearby parking (geocode → cache → provider) |
+| `POST` | `/api/discord/interactions` | Discord slash-command interaction handler |
 
 ### Webhook security
 
@@ -279,17 +458,17 @@ npm run test:watch  # watch mode
 
 ## Supported webhook events
 
-| Event | Effect |
-|-------|--------|
-| `ping` | Health check — logs and returns 200 |
-| `tournament.checkin_started` | Sets metadata + check-in flag |
-| `round.published` | Updates pairings; infers player roster from tables |
-| `round.started` | Starts the round clock |
-| `match.result_reported` | Updates pairing result + results feed |
-| `round.ended` | Updates standings; snapshots round into history |
-| `tournament.finished` | Sets winner, final standings, finished flag |
-| `player.registered` | Adds player to roster |
-| `player.dropped` | Marks player as dropped |
+| Event | State update | Discord notification |
+|-------|-------------|---------------------|
+| `ping` | Health check — logs and returns 200 | — |
+| `tournament.checkin_started` | Sets metadata + check-in flag | Parking embed (if venue set) |
+| `round.published` | Updates pairings; infers player roster | Pairings embed(s) |
+| `round.started` | Starts the round clock | "Round X has started!" + timer |
+| `match.result_reported` | Updates pairing result + results feed | — |
+| `round.ended` | Updates standings; snapshots round into history | Standings embed |
+| `tournament.finished` | Sets winner, final standings, finished flag | Final standings embed + winner |
+| `player.registered` | Adds player to roster | — |
+| `player.dropped` | Marks player as dropped | — |
 
 ---
 
@@ -303,6 +482,8 @@ npm run test:watch  # watch mode
 | Database | SQLite via Prisma 5 (local) / Turso or Postgres (production) |
 | Realtime | Server-Sent Events |
 | Testing | Vitest |
+| Parking data | OpenStreetMap / Overpass API (default) · Google Places API v1 (optional) |
+| Discord | @discordjs/rest · Ed25519 via tweetnacl · HTTP interactions (serverless-safe) |
 
 ---
 

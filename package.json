@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "send-test-event": "npx tsx scripts/send-test-event.ts"
+    "send-test-event": "npx tsx scripts/send-test-event.ts",
+    "discord:register": "npx tsx -r dotenv/config scripts/register-discord-commands.ts"
   },
   "keywords": [],
   "author": "",
