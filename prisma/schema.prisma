@@ -12,13 +12,13 @@ datasource db {
 // ─── Raw webhook event log ───────────────────────────────────────────────────
 
 model WebhookEvent {
-  id          String   @id              // event.id (dedup key)
-  tid         String?                   // null for ping events
-  type        String                   // e.g. "round.started"
-  apiVersion  String
-  createdAt   DateTime                 // event.created (unix ms → DateTime)
-  receivedAt  DateTime @default(now())
-  rawPayload  String                   // full JSON blob
+  id         String   @id // event.id (dedup key)
+  tid        String? // null for ping events
+  type       String // e.g. "round.started"
+  apiVersion String
+  createdAt  DateTime // event.created (unix ms → DateTime)
+  receivedAt DateTime @default(now())
+  rawPayload String // full JSON blob
 
   @@index([tid])
   @@index([type])
@@ -28,51 +28,51 @@ model WebhookEvent {
 // ─── Derived tournament state (one row per tournament) ──────────────────────
 
 model TournamentState {
-  tid               String   @id
+  tid String @id
 
   // Tournament metadata
-  name              String   @default("")
-  game              String   @default("")
-  format            String   @default("")
+  name   String @default("")
+  game   String @default("")
+  format String @default("")
 
   // Enriched by REST API (null until fetched via resync)
-  startDate         String?          // unix ms as string
-  status            String   @default("Not Started") // "Not Started"|"Ongoing"|"Complete"
-  location          String?          // JSON: TopDeckLocation
-  headerImage       String?
+  startDate   String? // unix ms as string
+  status      String  @default("Not Started") // "Not Started"|"Ongoing"|"Complete"
+  location    String? // JSON: TopDeckLocation
+  headerImage String?
 
   // Stage / round
-  currentStage      Int      @default(0)
-  currentRound      Int      @default(0)
-  roundLabel        String   @default("")
-  roundStatus       String   @default("pending") // "pending"|"active"|"ended"
-  roundStartedAt    String?  // unix ms as string (null until round.started)
-  roundTimeMinutes  Int?     // null if no timer configured
+  currentStage     Int     @default(0)
+  currentRound     Int     @default(0)
+  roundLabel       String  @default("")
+  roundStatus      String  @default("pending") // "pending"|"active"|"ended"
+  roundStartedAt   String? // unix ms as string (null until round.started)
+  roundTimeMinutes Int? // null if no timer configured
 
   // Live data blobs (stored as JSON strings, typed in application layer)
-  tables            String   @default("[]")   // TopDeckTable[]
-  matchResults      String   @default("[]")   // MatchResultEntry[]
-  standings         String   @default("[]")   // TopDeckStanding[]
-  players           String   @default("[]")   // TopDeckPlayer[]
-  droppedPlayers    String   @default("[]")   // DroppedPlayerEntry[]
-  waitlistPlayers   String   @default("[]")   // TopDeckAttendee[] (REST API only)
-  roundHistory      String   @default("[]")   // RoundSnapshot[]
+  tables          String @default("[]") // TopDeckTable[]
+  matchResults    String @default("[]") // MatchResultEntry[]
+  standings       String @default("[]") // TopDeckStanding[]
+  players         String @default("[]") // TopDeckPlayer[]
+  droppedPlayers  String @default("[]") // DroppedPlayerEntry[]
+  waitlistPlayers String @default("[]") // TopDeckAttendee[] (REST API only)
+  roundHistory    String @default("[]") // RoundSnapshot[]
 
   // Check-in
-  checkinStarted    Boolean  @default(false)
-  checkinStage      Int?
+  checkinStarted Boolean @default(false)
+  checkinStage   Int?
 
   // Finish state
-  finished          Boolean  @default(false)
-  finishedAt        String?          // unix ms as string
-  winnerData        String?          // JSON: TopDeckPlayer
-  participantCount  Int?
+  finished         Boolean @default(false)
+  finishedAt       String? // unix ms as string
+  winnerData       String? // JSON: TopDeckPlayer
+  participantCount Int?
 
   // Event tracking — for conflict resolution
-  lastEventId       String   @default("")
-  lastEventCreated  String   @default("0") // unix ms as string
+  lastEventId      String @default("")
+  lastEventCreated String @default("0") // unix ms as string
 
-  updatedAt         DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@index([finished])
   @@index([status])
@@ -88,22 +88,25 @@ model TournamentState {
 // Expired rows are overwritten in-place on the next cache miss.
 
 model ParkingCache {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   /// Stable key: "lat4dp:lng4dp"  e.g. "51.5074:-0.1278"
-  cacheKey  String   @unique
+  cacheKey String @unique
 
-  lat       Float
-  lng       Float
+  lat Float
+  lng Float
 
   /// "overpass" | "google_places"
-  provider  String
+  provider String
 
   /// JSON: ParkingResult[]
-  results   String
+  results String
 
-  fetchedAt DateTime @default(now())
+  fetchedAt DateTime
   expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([expiresAt])
 }
@@ -117,17 +120,17 @@ model ParkingCache {
 // settings is a JSON blob holding DiscordTournamentSettings.
 
 model DiscordLink {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   /// TopDeck tournament ID
-  tid       String   @unique
+  tid String @unique
 
   /// Discord snowflake IDs
   guildId   String
   channelId String
 
   /// JSON: DiscordTournamentSettings
-  settings  String   @default("{}")
+  settings String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

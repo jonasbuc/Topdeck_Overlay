@@ -238,7 +238,8 @@ export function ParkingSection({ tid, location }: Props) {
       <button
         className="parking-header"
         onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
+        aria-expanded={open ? "true" : "false"}
+        aria-controls="parking-body"
       >
         <span className="section-title parking-section-title">
           🅿️ Parking near venue
@@ -251,7 +252,7 @@ export function ParkingSection({ tid, location }: Props) {
 
       {/* ── Body (only rendered when open) ─────────────────────────────── */}
       {open && (
-        <div className="parking-body">
+        <div id="parking-body" className="parking-body">
           {/* Loading */}
           {loading && (
             <div className="parking-loading">
