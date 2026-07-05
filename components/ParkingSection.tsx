@@ -20,7 +20,7 @@
  *  - "Accessible" — only show results where accessible === true
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useId } from "react";
 import type { ParkingResponse, ParkingResult } from "@/lib/parking/types";
 import type { TopDeckLocation } from "@/lib/topdeck/types";
 
@@ -169,6 +169,7 @@ function FilterBar({
         .map((f) => (
           <button
             key={f.key}
+            type="button"
             className={`parking-filter-btn${active === f.key ? " active" : ""}`}
             onClick={() => onChange(f.key)}
           >
@@ -187,6 +188,7 @@ export function ParkingSection({ tid, location }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("closest");
   const [open, setOpen] = useState(false);
+  const bodyId = useId();
 
   const fetch_ = useCallback(async () => {
     setLoading(true);
@@ -236,10 +238,11 @@ export function ParkingSection({ tid, location }: Props) {
     <div className="card parking-section">
       {/* ── Collapsible header ──────────────────────────────────────────── */}
       <button
+        type="button"
         className="parking-header"
         onClick={() => setOpen((o) => !o)}
-        aria-expanded={open ? "true" : "false"}
-        aria-controls="parking-body"
+        aria-expanded={open}
+        aria-controls={bodyId}
       >
         <span className="section-title parking-section-title">
           🅿️ Parking near venue
@@ -250,9 +253,8 @@ export function ParkingSection({ tid, location }: Props) {
         <span className="parking-header-chevron">{open ? "▲" : "▼"}</span>
       </button>
 
-      {/* ── Body (only rendered when open) ─────────────────────────────── */}
-      {open && (
-        <div id="parking-body" className="parking-body">
+      {/* ── Body (always in DOM; hidden via `hidden` attribute when closed) ── */}
+      <div id={bodyId} className="parking-body" hidden={!open}>
           {/* Loading */}
           {loading && (
             <div className="parking-loading">
@@ -265,7 +267,7 @@ export function ParkingSection({ tid, location }: Props) {
           {!loading && error && (
             <div className="parking-error">
               <span>⚠️ {error}</span>
-              <button className="parking-retry-btn" onClick={fetch_}>
+              <button type="button" className="parking-retry-btn" onClick={fetch_}>
                 Retry
               </button>
             </div>
@@ -309,8 +311,7 @@ export function ParkingSection({ tid, location }: Props) {
               </div>
             </>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
