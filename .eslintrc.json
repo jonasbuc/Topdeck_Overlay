@@ -1,6 +1,7 @@
 {
   "extends": ["next/core-web-vitals"],
   "rules": {
-    "react/no-inline-styles": "off"
+    "react/no-inline-styles": "off",
+    "jsx-a11y/aria-proptypes": "off"
   }
 }

@@ -10,6 +10,7 @@ import { DroppedPlayers } from "@/components/DroppedPlayers";
 import { WinnerScreen } from "@/components/WinnerScreen";
 import { TournamentInfoBanner } from "@/components/TournamentInfoBanner";
 import { RoundHistoryViewer } from "@/components/RoundHistoryViewer";
+import { ParkingSection } from "@/components/ParkingSection";
 import Link from "next/link";
 
 interface Props {
@@ -35,6 +36,11 @@ export default function DashboardPage({ params }: Props) {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* ── Tournament info banner (REST-enriched data) ────────────────── */}
         {state && <TournamentInfoBanner state={state} />}
+
+        {/* ── Parking near venue (shown when location is available) ───────── */}
+        {state?.location && (
+          <ParkingSection tid={tid} location={state.location} />
+        )}
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="dashboard-header">
