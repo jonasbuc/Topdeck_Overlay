@@ -235,15 +235,13 @@ export function ParkingSection({ tid, location }: Props) {
   const filtered = data ? applyFilter(data.results, filter) : [];
 
   return (
-    <div className="card parking-section">
+    <details
+      className="card parking-section"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
       {/* ── Collapsible header ──────────────────────────────────────────── */}
-      <button
-        type="button"
-        className="parking-header"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls={bodyId}
-      >
+      <summary className="parking-header">
         <span className="section-title parking-section-title">
           🅿️ Parking near venue
           {locationLabel && (
@@ -251,10 +249,10 @@ export function ParkingSection({ tid, location }: Props) {
           )}
         </span>
         <span className="parking-header-chevron">{open ? "▲" : "▼"}</span>
-      </button>
+      </summary>
 
-      {/* ── Body (always in DOM; hidden via `hidden` attribute when closed) ── */}
-      <div id={bodyId} className="parking-body" hidden={!open}>
+      {/* ── Body ────────────────────────────────────────────────────────── */}
+      <div id={bodyId} className="parking-body">
           {/* Loading */}
           {loading && (
             <div className="parking-loading">
@@ -312,6 +310,6 @@ export function ParkingSection({ tid, location }: Props) {
             </>
           )}
       </div>
-    </div>
+    </details>
   );
 }
