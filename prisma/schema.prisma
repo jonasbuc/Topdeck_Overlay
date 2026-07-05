@@ -77,3 +77,61 @@ model TournamentState {
   @@index([finished])
   @@index([status])
 }
+
+// ─── Parking cache (one row per unique venue location) ──────────────────────
+//
+// Results from the parking provider are cached here to avoid hitting
+// external APIs on every page load. The cache key is derived from the
+// venue lat/lng rounded to 4 decimal places (~11 m precision).
+//
+// TTL is enforced at the application layer by comparing expiresAt to now().
+// Expired rows are overwritten in-place on the next cache miss.
+
+model ParkingCache {
+  id        String   @id @default(cuid())
+
+  /// Stable key: "lat4dp:lng4dp"  e.g. "51.5074:-0.1278"
+  cacheKey  String   @unique
+
+  lat       Float
+  lng       Float
+
+  /// "overpass" | "google_places"
+  provider  String
+
+  /// JSON: ParkingResult[]
+  results   String
+
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// ─── Discord channel linked to a tournament ─────────────────────────────────
+//
+// Created via the /topdeck link <tid> slash command.
+// One row per tournament — a tournament can only be linked to one channel
+// at a time (the channel that ran the link command).
+//
+// settings is a JSON blob holding DiscordTournamentSettings.
+
+model DiscordLink {
+  id        String   @id @default(cuid())
+
+  /// TopDeck tournament ID
+  tid       String   @unique
+
+  /// Discord snowflake IDs
+  guildId   String
+  channelId String
+
+  /// JSON: DiscordTournamentSettings
+  settings  String   @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([channelId])
+}
