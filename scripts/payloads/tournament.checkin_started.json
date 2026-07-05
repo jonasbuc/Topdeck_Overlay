@@ -1,0 +1,15 @@
+{
+  "id": "evt_test_checkin_001",
+  "type": "tournament.checkin_started",
+  "created": 1751500200000,
+  "apiVersion": "2026-07",
+  "tid": "tid_test_001",
+  "tournament": {
+    "name": "cEDH Regional Championship 2026",
+    "game": "Magic: The Gathering",
+    "format": "cEDH"
+  },
+  "data": {
+    "stage": 1
+  }
+}

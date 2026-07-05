@@ -1,0 +1,16 @@
+{
+  "id": "evt_test_player_reg_001",
+  "type": "player.registered",
+  "created": 1751499600000,
+  "apiVersion": "2026-07",
+  "tid": "tid_test_001",
+  "tournament": {
+    "name": "cEDH Regional Championship 2026",
+    "game": "Magic: The Gathering",
+    "format": "cEDH"
+  },
+  "data": {
+    "player": { "id": "p014", "name": "Noah Anderson" },
+    "registeredAt": 1751499600000
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "evt_test_match_result_001",
+  "type": "match.result_reported",
+  "created": 1751506200000,
+  "apiVersion": "2026-07",
+  "tid": "tid_test_001",
+  "tournament": {
+    "name": "cEDH Regional Championship 2026",
+    "game": "Magic: The Gathering",
+    "format": "cEDH"
+  },
+  "data": {
+    "stage": 1,
+    "round": 1,
+    "result": "winner",
+    "table": {
+      "table": 1,
+      "players": [
+        { "id": "p001", "name": "Alice Chen" },
+        { "id": "p002", "name": "Bob Martinez" },
+        { "id": "p003", "name": "Carol Kim" },
+        { "id": "p004", "name": "Dave Wilson" }
+      ],
+      "winner": "Alice Chen",
+      "winner_id": "p001",
+      "winner_games": null,
+      "loser_games": null,
+      "status": "Completed"
+    }
+  }
+}

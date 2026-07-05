@@ -1,0 +1,19 @@
+{
+  "id": "evt_test_round_start_001",
+  "type": "round.started",
+  "created": 1751503800000,
+  "apiVersion": "2026-07",
+  "tid": "tid_test_001",
+  "tournament": {
+    "name": "cEDH Regional Championship 2026",
+    "game": "Magic: The Gathering",
+    "format": "cEDH"
+  },
+  "data": {
+    "stage": 1,
+    "round": 1,
+    "roundLabel": "Round 1",
+    "startedAt": 1751503800000,
+    "roundTimeMinutes": 60
+  }
+}

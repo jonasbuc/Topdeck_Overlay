@@ -1,0 +1,79 @@
+// TopDeck Live – Prisma schema (SQLite)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Raw webhook event log ───────────────────────────────────────────────────
+
+model WebhookEvent {
+  id          String   @id              // event.id (dedup key)
+  tid         String?                   // null for ping events
+  type        String                   // e.g. "round.started"
+  apiVersion  String
+  createdAt   DateTime                 // event.created (unix ms → DateTime)
+  receivedAt  DateTime @default(now())
+  rawPayload  String                   // full JSON blob
+
+  @@index([tid])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ─── Derived tournament state (one row per tournament) ──────────────────────
+
+model TournamentState {
+  tid               String   @id
+
+  // Tournament metadata
+  name              String   @default("")
+  game              String   @default("")
+  format            String   @default("")
+
+  // Enriched by REST API (null until fetched via resync)
+  startDate         String?          // unix ms as string
+  status            String   @default("Not Started") // "Not Started"|"Ongoing"|"Complete"
+  location          String?          // JSON: TopDeckLocation
+  headerImage       String?
+
+  // Stage / round
+  currentStage      Int      @default(0)
+  currentRound      Int      @default(0)
+  roundLabel        String   @default("")
+  roundStatus       String   @default("pending") // "pending"|"active"|"ended"
+  roundStartedAt    String?  // unix ms as string (null until round.started)
+  roundTimeMinutes  Int?     // null if no timer configured
+
+  // Live data blobs (stored as JSON strings, typed in application layer)
+  tables            String   @default("[]")   // TopDeckTable[]
+  matchResults      String   @default("[]")   // MatchResultEntry[]
+  standings         String   @default("[]")   // TopDeckStanding[]
+  players           String   @default("[]")   // TopDeckPlayer[]
+  droppedPlayers    String   @default("[]")   // DroppedPlayerEntry[]
+  waitlistPlayers   String   @default("[]")   // TopDeckAttendee[] (REST API only)
+  roundHistory      String   @default("[]")   // RoundSnapshot[]
+
+  // Check-in
+  checkinStarted    Boolean  @default(false)
+  checkinStage      Int?
+
+  // Finish state
+  finished          Boolean  @default(false)
+  finishedAt        String?          // unix ms as string
+  winnerData        String?          // JSON: TopDeckPlayer
+  participantCount  Int?
+
+  // Event tracking — for conflict resolution
+  lastEventId       String   @default("")
+  lastEventCreated  String   @default("0") // unix ms as string
+
+  updatedAt         DateTime @updatedAt
+
+  @@index([finished])
+  @@index([status])
+}

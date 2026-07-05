@@ -1,0 +1,26 @@
+{
+  "id": "evt_test_round_ended_001",
+  "type": "round.ended",
+  "created": 1751507400000,
+  "apiVersion": "2026-07",
+  "tid": "tid_test_001",
+  "tournament": {
+    "name": "cEDH Regional Championship 2026",
+    "game": "Magic: The Gathering",
+    "format": "cEDH"
+  },
+  "data": {
+    "stage": 1,
+    "round": 1,
+    "roundLabel": "Round 1",
+    "standings": [
+      { "standing": 1, "name": "Alice Chen",    "id": "p001", "points": 3, "winRate": 1.0,  "opponentWinRate": 0.75 },
+      { "standing": 2, "name": "Eve Johnson",   "id": "p005", "points": 3, "winRate": 1.0,  "opponentWinRate": 0.67 },
+      { "standing": 3, "name": "Iris Davis",    "id": "p009", "points": 3, "winRate": 1.0,  "opponentWinRate": 0.58 },
+      { "standing": 4, "name": "Mia Scott",     "id": "p013", "points": 3, "winRate": 1.0,  "opponentWinRate": 0.50 },
+      { "standing": 5, "name": "Bob Martinez",  "id": "p002", "points": 0, "winRate": 0.0,  "opponentWinRate": 1.0  },
+      { "standing": 6, "name": "Frank Lee",     "id": "p006", "points": 0, "winRate": 0.0,  "opponentWinRate": 1.0  },
+      { "standing": 7, "name": "Jack Thompson", "id": "p010", "points": 0, "winRate": 0.0,  "opponentWinRate": 1.0  }
+    ]
+  }
+}

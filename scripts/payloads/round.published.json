@@ -1,0 +1,72 @@
+{
+  "id": "evt_test_round_pub_001",
+  "type": "round.published",
+  "created": 1751503200000,
+  "apiVersion": "2026-07",
+  "tid": "tid_test_001",
+  "tournament": {
+    "name": "cEDH Regional Championship 2026",
+    "game": "Magic: The Gathering",
+    "format": "cEDH"
+  },
+  "data": {
+    "stage": 1,
+    "round": 1,
+    "roundLabel": "Round 1",
+    "tables": [
+      {
+        "table": 1,
+        "players": [
+          { "id": "p001", "name": "Alice Chen" },
+          { "id": "p002", "name": "Bob Martinez" },
+          { "id": "p003", "name": "Carol Kim" },
+          { "id": "p004", "name": "Dave Wilson" }
+        ],
+        "winner": null,
+        "winner_id": null,
+        "winner_games": null,
+        "loser_games": null,
+        "status": "Pending"
+      },
+      {
+        "table": 2,
+        "players": [
+          { "id": "p005", "name": "Eve Johnson" },
+          { "id": "p006", "name": "Frank Lee" },
+          { "id": "p007", "name": "Grace Patel" },
+          { "id": "p008", "name": "Henry Brown" }
+        ],
+        "winner": null,
+        "winner_id": null,
+        "winner_games": null,
+        "loser_games": null,
+        "status": "Pending"
+      },
+      {
+        "table": 3,
+        "players": [
+          { "id": "p009", "name": "Iris Davis" },
+          { "id": "p010", "name": "Jack Thompson" },
+          { "id": "p011", "name": "Kate White" },
+          { "id": "p012", "name": "Liam Garcia" }
+        ],
+        "winner": null,
+        "winner_id": null,
+        "winner_games": null,
+        "loser_games": null,
+        "status": "Pending"
+      },
+      {
+        "table": "Byes",
+        "players": [
+          { "id": "p013", "name": "Mia Scott" }
+        ],
+        "winner": "Mia Scott",
+        "winner_id": "p013",
+        "winner_games": null,
+        "loser_games": null,
+        "status": "Bye"
+      }
+    ]
+  }
+}

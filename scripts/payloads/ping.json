@@ -1,0 +1,11 @@
+{
+  "id": "evt_test_ping_000",
+  "type": "ping",
+  "created": 1751500800000,
+  "apiVersion": "2026-07",
+  "tid": null,
+  "tournament": null,
+  "data": {
+    "message": "Webhook endpoint health check"
+  }
+}
