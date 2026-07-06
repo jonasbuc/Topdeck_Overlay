@@ -125,7 +125,8 @@ No configuration is needed — the default provider uses free OpenStreetMap data
 4. Results are fetched from Overpass/OSM, cached for 1 hour, and returned
 5. The dashboard renders an OpenStreetMap-based mini map with the venue and parking markers
 6. Users can optionally add their device location to compare themselves against the venue and nearest parking
-7. Each result shows distance, walking time, price info, accessibility, and a Google Maps navigation link
+7. Users can mark where they parked; the car pin is stored locally in that browser for the tournament
+8. Each result shows distance, walking time, price info, accessibility, and a Google Maps navigation link
 
 ### Choosing a parking provider
 

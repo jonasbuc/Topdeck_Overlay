@@ -2362,11 +2362,18 @@ body {
   line-height: 1.3;
 }
 
-.parking-locate-btn {
+.parking-map-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.parking-locate-btn,
+.parking-car-btn,
+.parking-clear-car-btn {
   flex-shrink: 0;
-  border: 1px solid rgba(56, 189, 248, 0.42);
-  background: rgba(56, 189, 248, 0.12);
-  color: #bae6fd;
   border-radius: 999px;
   padding: 0.35rem 0.85rem;
   font-size: 0.74rem;
@@ -2375,12 +2382,42 @@ body {
   white-space: nowrap;
 }
 
+.parking-locate-btn {
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+
 .parking-locate-btn:hover:not(:disabled) {
   border-color: #7dd3fc;
   color: #e0f2fe;
 }
 
-.parking-locate-btn:disabled {
+.parking-car-btn {
+  border: 1px solid rgba(251, 146, 60, 0.48);
+  background: rgba(251, 146, 60, 0.13);
+  color: #fed7aa;
+}
+
+.parking-car-btn:hover:not(:disabled) {
+  border-color: #fdba74;
+  color: #ffedd5;
+}
+
+.parking-clear-car-btn {
+  border: 1px solid rgba(248, 113, 113, 0.36);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fecaca;
+}
+
+.parking-clear-car-btn:hover:not(:disabled) {
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+
+.parking-locate-btn:disabled,
+.parking-car-btn:disabled,
+.parking-clear-car-btn:disabled {
   opacity: 0.62;
   cursor: wait;
 }
@@ -2464,6 +2501,11 @@ body {
   color: #082f49;
 }
 
+.parking-map-marker-car {
+  background: #fb923c;
+  color: #431407;
+}
+
 .parking-map-legend {
   display: flex;
   flex-wrap: wrap;
@@ -2491,6 +2533,14 @@ body {
 .parking-legend-dot.venue { background: var(--color-gold); }
 .parking-legend-dot.parking { background: var(--color-accent); }
 .parking-legend-dot.user { background: #38bdf8; }
+.parking-legend-dot.car { background: #fb923c; }
+
+.parking-car-status {
+  padding: 0 0.9rem 0.65rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
 
 @media (max-width: 640px) {
   .parking-map-topbar {
@@ -2498,7 +2548,10 @@ body {
     flex-direction: column;
   }
 
-  .parking-locate-btn {
+  .parking-map-actions,
+  .parking-locate-btn,
+  .parking-car-btn,
+  .parking-clear-car-btn {
     width: 100%;
   }
 

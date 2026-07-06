@@ -22,6 +22,7 @@
  * Map:
  *  - OpenStreetMap tiles show venue + parking markers
  *  - "Use my location" adds the user's device position when permission is granted
+ *  - "Mark parked car" stores a local-only car pin in browser localStorage
  */
 
 import { useEffect, useState, useCallback, useId, useMemo } from "react";
@@ -42,6 +43,10 @@ interface UserPoint extends GeoPoint {
   accuracyMeters: number | null;
 }
 
+interface ParkedCarPoint extends UserPoint {
+  savedAt: number;
+}
+
 interface TileSpec {
   key: string;
   url: string;
@@ -53,7 +58,7 @@ interface TileSpec {
 
 interface MarkerSpec {
   id: string;
-  type: "venue" | "parking" | "user";
+  type: "venue" | "parking" | "user" | "car";
   label: string;
   leftPct: number;
   topPct: number;
@@ -133,7 +138,8 @@ function chooseZoom(points: GeoPoint[]): number {
 function buildMapModel(
   venue: GeoPoint,
   results: ParkingResult[],
-  userPoint: UserPoint | null
+  userPoint: UserPoint | null,
+  carPoint: ParkedCarPoint | null
 ): ParkingMapModel {
   const parkingPoints = results.map((result) => ({
     lat: result.lat,
@@ -141,10 +147,13 @@ function buildMapModel(
   }));
   const shouldFitUser =
     userPoint != null && haversineMeters(venue, userPoint) <= USER_FIT_RADIUS_M;
+  const shouldFitCar =
+    carPoint != null && haversineMeters(venue, carPoint) <= USER_FIT_RADIUS_M;
   const points = [
     venue,
     ...parkingPoints,
     ...(shouldFitUser && userPoint ? [userPoint] : []),
+    ...(shouldFitCar && carPoint ? [carPoint] : []),
   ];
   const zoom = chooseZoom(points);
   const projected = points.map((point) => project(point, zoom));
@@ -212,6 +221,15 @@ function buildMapModel(
     });
   }
 
+  if (carPoint) {
+    markers.push({
+      id: "car",
+      type: "car",
+      label: "Car",
+      ...markerPosition(carPoint),
+    });
+  }
+
   return { zoom, tiles, markers };
 }
 
@@ -233,6 +251,54 @@ function nearestParking(
     },
     null
   );
+}
+
+function getCurrentLocation(): Promise<UserPoint> {
+  return new Promise((resolve, reject) => {
+    if (!("geolocation" in navigator)) {
+      reject(new Error("Location is not available in this browser."));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracyMeters: Number.isFinite(position.coords.accuracy)
+            ? Math.round(position.coords.accuracy)
+            : null,
+        });
+      },
+      () => reject(new Error("Could not access your location.")),
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
+    );
+  });
+}
+
+function parseStoredCarPoint(raw: string | null): ParkedCarPoint | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<ParkedCarPoint>;
+    if (
+      typeof parsed.lat !== "number" ||
+      typeof parsed.lng !== "number" ||
+      typeof parsed.savedAt !== "number"
+    ) {
+      return null;
+    }
+    return {
+      lat: parsed.lat,
+      lng: parsed.lng,
+      savedAt: parsed.savedAt,
+      accuracyMeters:
+        typeof parsed.accuracyMeters === "number"
+          ? parsed.accuracyMeters
+          : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -320,12 +386,14 @@ function ParkingCard({
 }
 
 function ParkingMap({
+  tid,
   response,
   results,
   totalResults,
   selectedParkingId,
   onSelectParking,
 }: {
+  tid: string;
   response: ParkingResponse;
   results: ParkingResult[];
   totalResults: number;
@@ -333,45 +401,76 @@ function ParkingMap({
   onSelectParking: (id: string) => void;
 }) {
   const [userPoint, setUserPoint] = useState<UserPoint | null>(null);
+  const [carPoint, setCarPoint] = useState<ParkedCarPoint | null>(null);
   const [locating, setLocating] = useState(false);
   const [geoMessage, setGeoMessage] = useState<string | null>(null);
+  const carStorageKey = useMemo(
+    () => `topdeck-live:${tid}:parked-car`,
+    [tid]
+  );
 
   const venue = useMemo(
     () => ({ lat: response.location.lat, lng: response.location.lng }),
     [response.location.lat, response.location.lng]
   );
   const model = useMemo(
-    () => buildMapModel(venue, results, userPoint),
-    [venue, results, userPoint]
+    () => buildMapModel(venue, results, userPoint, carPoint),
+    [venue, results, userPoint, carPoint]
   );
   const nearest = nearestParking(userPoint, results);
   const userToVenue = userPoint ? haversineMeters(userPoint, venue) : null;
+  const carToVenue = carPoint ? haversineMeters(carPoint, venue) : null;
+  const carToNearest = nearestParking(carPoint, results);
 
-  const handleLocate = () => {
-    if (!("geolocation" in navigator)) {
-      setGeoMessage("Location is not available in this browser.");
-      return;
+  useEffect(() => {
+    try {
+      setCarPoint(parseStoredCarPoint(localStorage.getItem(carStorageKey)));
+    } catch {
+      setCarPoint(null);
     }
+  }, [carStorageKey]);
 
+  const locate = async (): Promise<UserPoint | null> => {
     setLocating(true);
     setGeoMessage(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserPoint({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracyMeters: Number.isFinite(position.coords.accuracy)
-            ? Math.round(position.coords.accuracy)
-            : null,
-        });
-        setLocating(false);
-      },
-      () => {
-        setGeoMessage("Could not access your location.");
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
-    );
+    try {
+      const point = await getCurrentLocation();
+      setUserPoint(point);
+      return point;
+    } catch (err) {
+      setGeoMessage(err instanceof Error ? err.message : "Could not access your location.");
+      return null;
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const handleLocate = () => {
+    locate();
+  };
+
+  const handleMarkCar = async () => {
+    const point = await locate();
+    if (!point) return;
+
+    const saved: ParkedCarPoint = { ...point, savedAt: Date.now() };
+    setCarPoint(saved);
+    try {
+      localStorage.setItem(carStorageKey, JSON.stringify(saved));
+      setGeoMessage("Parked car saved on this device.");
+    } catch {
+      setGeoMessage("Car marker set, but could not be saved.");
+    }
+  };
+
+  const handleClearCar = () => {
+    setCarPoint(null);
+    try {
+      localStorage.removeItem(carStorageKey);
+    } catch {
+      // Ignore localStorage failures; clearing local state is enough for now.
+    }
+    setGeoMessage("Parked car marker cleared.");
   };
 
   const statusText = userPoint
@@ -385,6 +484,18 @@ function ParkingMap({
     : totalResults > results.length
     ? `${results.length} closest of ${totalResults} options on map`
     : `${results.length} option${results.length === 1 ? "" : "s"} on map`;
+  const carStatusText = carPoint
+    ? [
+        `Car saved ${new Date(carPoint.savedAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`,
+        carToVenue != null ? `${formatDistance(Math.round(carToVenue))} to venue` : null,
+        carToNearest ? `${formatDistance(Math.round(carToNearest.distanceMeters))} to nearest parking` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
 
   return (
     <div className="parking-map">
@@ -395,14 +506,33 @@ function ParkingMap({
             {geoMessage ?? statusText}
           </div>
         </div>
-        <button
-          type="button"
-          className="parking-locate-btn"
-          onClick={handleLocate}
-          disabled={locating}
-        >
-          {locating ? "Locating..." : userPoint ? "Update location" : "Use my location"}
-        </button>
+        <div className="parking-map-actions">
+          <button
+            type="button"
+            className="parking-locate-btn"
+            onClick={handleLocate}
+            disabled={locating}
+          >
+            {locating ? "Locating..." : userPoint ? "Update location" : "Use my location"}
+          </button>
+          <button
+            type="button"
+            className="parking-car-btn"
+            onClick={handleMarkCar}
+            disabled={locating}
+          >
+            {locating ? "Locating..." : carPoint ? "Move car pin here" : "Mark parked car"}
+          </button>
+          {carPoint && (
+            <button
+              type="button"
+              className="parking-clear-car-btn"
+              onClick={handleClearCar}
+            >
+              Clear car
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="parking-map-canvas" role="img" aria-label="Parking map">
@@ -463,7 +593,11 @@ function ParkingMap({
         <span><span className="parking-legend-dot venue" />Venue</span>
         <span><span className="parking-legend-dot parking" />Parking</span>
         {userPoint && <span><span className="parking-legend-dot user" />You</span>}
+        {carPoint && <span><span className="parking-legend-dot car" />Car</span>}
       </div>
+      {carStatusText && (
+        <div className="parking-car-status">{carStatusText}</div>
+      )}
     </div>
   );
 }
@@ -610,6 +744,7 @@ export function ParkingSection({ tid, location }: Props) {
           {!loading && !error && data && (
             <>
               <ParkingMap
+                tid={tid}
                 response={data}
                 results={mapResults}
                 totalResults={filtered.length}
