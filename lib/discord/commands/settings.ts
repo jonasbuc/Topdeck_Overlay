@@ -2,7 +2,7 @@
  * /topdeck settings
  *
  * Shows the current notification settings for this channel in an ephemeral
- * embed. Readable by any user; settings can be changed via /link (re-link
+ * embed. Readable by any user; settings can be changed via /topdeck link (re-link
  * with new options) or via future admin commands.
  */
 
@@ -22,7 +22,7 @@ export async function handleSettings(
 
   const link = await getLinkByChannel(channelId);
   if (!link) {
-    return ephemeral("ℹ️ No tournament is linked to this channel. Use `/link <tid>` first.");
+    return ephemeral("ℹ️ No tournament is linked to this channel. Use `/topdeck link <tid>` first.");
   }
 
   const s = link.settings;

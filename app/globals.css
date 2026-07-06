@@ -2328,6 +2328,185 @@ body {
   border-top: 1px solid var(--color-border);
 }
 
+/* Map */
+.parking-map {
+  margin-top: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+}
+
+.parking-map-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(15, 15, 20, 0.55);
+}
+
+.parking-map-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent-light);
+}
+
+.parking-map-status {
+  margin-top: 0.15rem;
+  font-size: 0.74rem;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+.parking-locate-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.parking-locate-btn:hover:not(:disabled) {
+  border-color: #7dd3fc;
+  color: #e0f2fe;
+}
+
+.parking-locate-btn:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.parking-map-canvas {
+  position: relative;
+  aspect-ratio: 8 / 3;
+  min-height: 15rem;
+  overflow: hidden;
+  background: #111827;
+}
+
+.parking-map-tile {
+  position: absolute;
+  object-fit: cover;
+  user-select: none;
+  pointer-events: none;
+  filter: saturate(0.8) brightness(0.68) contrast(1.08);
+}
+
+.parking-map-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 45%, transparent 0%, rgba(15, 15, 20, 0.08) 45%, rgba(15, 15, 20, 0.38) 100%),
+    linear-gradient(to bottom, rgba(15, 15, 20, 0.1), rgba(15, 15, 20, 0.22));
+}
+
+.parking-map-marker {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.35rem;
+  border-radius: 999px 999px 999px 0.2rem;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.35);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.parking-map-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -0.42rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0.3rem 0.75rem rgba(0, 0, 0, 0.35);
+}
+
+.parking-map-marker-venue {
+  background: var(--color-gold);
+  color: #1f1300;
+}
+
+.parking-map-marker-parking {
+  background: var(--color-accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.parking-map-marker-parking:hover,
+.parking-map-marker-parking.selected {
+  background: var(--color-win);
+  color: #052e16;
+  border-color: #dcfce7;
+}
+
+.parking-map-marker-user {
+  background: #38bdf8;
+  color: #082f49;
+}
+
+.parking-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.parking-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.parking-legend-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.parking-legend-dot.venue { background: var(--color-gold); }
+.parking-legend-dot.parking { background: var(--color-accent); }
+.parking-legend-dot.user { background: #38bdf8; }
+
+@media (max-width: 640px) {
+  .parking-map-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .parking-locate-btn {
+    width: 100%;
+  }
+
+  .parking-map-canvas {
+    min-height: 13rem;
+  }
+}
+
 /* Loading state */
 .parking-loading {
   display: flex;
@@ -2454,6 +2633,11 @@ body {
 .parking-card:hover {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.parking-card.selected {
+  border-color: var(--color-win);
+  box-shadow: 0 0 0 1px var(--color-win), 0 0 1.25rem rgba(34, 197, 94, 0.12);
 }
 
 .parking-card-header {

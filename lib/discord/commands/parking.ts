@@ -31,7 +31,7 @@ export async function handleParking(
 
   const link = await getLinkByChannel(channelId);
   if (!link) {
-    return ephemeral("❌ No tournament is linked to this channel. Use `/link <tid>` first.");
+    return ephemeral("❌ No tournament is linked to this channel. Use `/topdeck link <tid>` first.");
   }
 
   const state = await getTournamentState(link.tid);

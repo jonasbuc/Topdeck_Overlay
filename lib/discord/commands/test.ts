@@ -34,7 +34,7 @@ export async function handleTest(
           description:
             link
               ? `✅ Bot is working correctly.\n\nLinked tournament: \`${link.tid}\`\n\nThis channel will receive live updates when tournament webhooks arrive.`
-              : `✅ Bot is working correctly.\n\nℹ️ No tournament linked yet — use \`/link <tid>\` to connect a TopDeck tournament.`,
+              : `✅ Bot is working correctly.\n\nℹ️ No tournament linked yet — use \`/topdeck link <tid>\` to connect a TopDeck tournament.`,
           color: 0x22c55e,
           footer: { text: "TopDeck Live" },
           timestamp: new Date().toISOString(),

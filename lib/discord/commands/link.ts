@@ -55,7 +55,7 @@ export async function handleLink(
       embeds: [
         {
           title: "✅ Tournament Linked",
-          description: `This channel will now receive live updates for tournament \`${tid}\`.\n\nUse \`/standings\`, \`/pairings\`, or \`/parking\` to post on demand.\nUse \`/settings\` to configure what gets posted automatically.`,
+          description: `This channel will now receive live updates for tournament \`${tid}\`.\n\nUse \`/topdeck standings\`, \`/topdeck pairings\`, or \`/topdeck parking\` to post on demand.\nUse \`/topdeck settings\` to view what gets posted automatically.`,
           color: 0x7c3aed, // accent purple
         },
       ],

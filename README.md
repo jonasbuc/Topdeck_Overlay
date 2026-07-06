@@ -123,7 +123,9 @@ No configuration is needed — the default provider uses free OpenStreetMap data
 2. On first expand, it calls `GET /api/tournaments/[tid]/parking`
 3. The API resolves the venue coordinates (direct `lat/lng` or Nominatim geocode)
 4. Results are fetched from Overpass/OSM, cached for 1 hour, and returned
-5. Each result shows distance, walking time, price info, accessibility, and a Google Maps navigation link
+5. The dashboard renders an OpenStreetMap-based mini map with the venue and parking markers
+6. Users can optionally add their device location to compare themselves against the venue and nearest parking
+7. Each result shows distance, walking time, price info, accessibility, and a Google Maps navigation link
 
 ### Choosing a parking provider
 

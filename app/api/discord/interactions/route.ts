@@ -16,8 +16,7 @@
  * Response timing:
  *   Discord requires a response within 3 seconds. All handlers that do
  *   async work (DB reads, parking API) are fast enough to respond inline.
- *   The `/parking` command may take longer on a cold cache miss — in that
- *   case it returns a deferred response and follows up via REST.
+ *   The `/topdeck parking` command may take longer on a cold cache miss.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -45,6 +44,11 @@ const INTERACTION_TYPE = {
   PING: 1,
   APPLICATION_COMMAND: 2,
 } as const;
+
+type ResolvedCommand = {
+  name: string | undefined;
+  interaction: DiscordInteraction;
+};
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -93,23 +97,25 @@ export async function POST(req: NextRequest) {
 
   // ── 5. Dispatch slash commands ──────────────────────────────────────────
   if (interaction.type === INTERACTION_TYPE.APPLICATION_COMMAND) {
-    const commandName = interaction.data?.name;
+    const resolved = resolveCommand(interaction);
+    const commandName = resolved.name;
+    const commandInteraction = resolved.interaction;
     let response: InteractionResponse;
 
     try {
       switch (commandName) {
-        case CMD.LINK:       response = await handleLink(interaction); break;
-        case CMD.UNLINK:     response = await handleUnlink(interaction); break;
-        case CMD.STANDINGS:  response = await handleStandings(interaction); break;
-        case CMD.PAIRINGS:   response = await handlePairings(interaction); break;
-        case CMD.PARKING:    response = await handleParking(interaction); break;
-        case CMD.SETTINGS:   response = await handleSettings(interaction); break;
-        case CMD.TEST:       response = await handleTest(interaction); break;
+        case CMD.LINK:       response = await handleLink(commandInteraction); break;
+        case CMD.UNLINK:     response = await handleUnlink(commandInteraction); break;
+        case CMD.STANDINGS:  response = await handleStandings(commandInteraction); break;
+        case CMD.PAIRINGS:   response = await handlePairings(commandInteraction); break;
+        case CMD.PARKING:    response = await handleParking(commandInteraction); break;
+        case CMD.SETTINGS:   response = await handleSettings(commandInteraction); break;
+        case CMD.TEST:       response = await handleTest(commandInteraction); break;
         default:
-          return NextResponse.json({ error: `unknown command: ${commandName}` }, { status: 501 });
+          return NextResponse.json({ error: `unknown command: ${commandName ?? "unknown"}` }, { status: 501 });
       }
     } catch (err) {
-      console.error(`[discord/interactions] handler error for /${commandName}:`, err instanceof Error ? err.message : err);
+      console.error(`[discord/interactions] handler error for /topdeck ${commandName ?? "unknown"}:`, err instanceof Error ? err.message : err);
       response = {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: { content: "❌ An unexpected error occurred. Please try again.", flags: 64 },
@@ -121,4 +127,29 @@ export async function POST(req: NextRequest) {
 
   // Unknown interaction type
   return NextResponse.json({ error: "unknown interaction type" }, { status: 400 });
+}
+
+function resolveCommand(interaction: DiscordInteraction): ResolvedCommand {
+  const rootName = interaction.data?.name;
+
+  if (rootName !== CMD.TOPDECK) {
+    return { name: rootName, interaction };
+  }
+
+  const subcommand = interaction.data?.options?.[0];
+  if (!subcommand) {
+    return { name: undefined, interaction };
+  }
+
+  return {
+    name: subcommand.name,
+    interaction: {
+      ...interaction,
+      data: {
+        ...interaction.data!,
+        name: subcommand.name,
+        options: subcommand.options ?? [],
+      },
+    },
+  };
 }
