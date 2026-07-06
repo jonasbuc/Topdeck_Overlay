@@ -11,6 +11,8 @@ import { WinnerScreen } from "@/components/WinnerScreen";
 import { TournamentInfoBanner } from "@/components/TournamentInfoBanner";
 import { RoundHistoryViewer } from "@/components/RoundHistoryViewer";
 import { ParkingSection } from "@/components/ParkingSection";
+import { TournamentOpsPanel } from "@/components/TournamentOpsPanel";
+import { DiscordSetupWizard } from "@/components/DiscordSetupWizard";
 import Link from "next/link";
 
 interface Props {
@@ -76,6 +78,11 @@ export default function DashboardPage({ params }: Props) {
               OBS overlays ↗
             </Link>
 
+            {/* Player companion link */}
+            <Link href={`/event/${tid}`} target="_blank" className="obs-link">
+              Player page ↗
+            </Link>
+
             {/* Analytics link */}
             <Link href={`/analytics/${tid}`} className="obs-link">
               Analytics
@@ -101,6 +108,13 @@ export default function DashboardPage({ params }: Props) {
           </div>
         )}
 
+        {state && (
+          <div className="ops-dashboard-grid">
+            <TournamentOpsPanel tid={tid} />
+            <DiscordSetupWizard tid={tid} />
+          </div>
+        )}
+
         {/* ── Overlay sources panel ───────────────────────────────────────── */}
         {state && (
           <details className="card">
@@ -120,6 +134,7 @@ export default function DashboardPage({ params }: Props) {
                 { name: "Winner screen (1920×1080)", path: `/overlay/${tid}/winner` },
                 { name: "Results ticker (1920×64)", path: `/overlay/${tid}/ticker` },
                 { name: "Venue display (fullscreen)", path: `/venue/${tid}` },
+                { name: "Player companion page", path: `/event/${tid}` },
               ].map((o) => (
                 <div key={o.path} className="overlay-link-row">
                   <span className="overlay-link-name">{o.name}</span>

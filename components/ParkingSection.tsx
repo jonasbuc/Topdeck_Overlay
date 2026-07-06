@@ -83,6 +83,29 @@ function formatWalk(min: number): string {
   return `~${min} min walk`;
 }
 
+function coord(point: GeoPoint): string {
+  return `${point.lat},${point.lng}`;
+}
+
+function googleDirectionsUrl(destination: GeoPoint, origin?: GeoPoint): string {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: coord(destination),
+    travelmode: "walking",
+  });
+  if (origin) params.set("origin", coord(origin));
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function appleDirectionsUrl(destination: GeoPoint, origin?: GeoPoint): string {
+  const params = new URLSearchParams({
+    daddr: coord(destination),
+    dirflg: "w",
+  });
+  if (origin) params.set("saddr", coord(origin));
+  return `https://maps.apple.com/?${params.toString()}`;
+}
+
 function applyFilter(results: ParkingResult[], filter: Filter): ParkingResult[] {
   switch (filter) {
     case "closest":
@@ -310,13 +333,11 @@ function ParkingCard({
   result: ParkingResult;
   selected: boolean;
 }) {
+  const point = { lat: result.lat, lng: result.lng };
+
   return (
-    <a
-      href={result.navigationUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+    <article
       className={`parking-card${selected ? " selected" : ""}`}
-      aria-label={`Open navigation to ${result.name || "parking"}`}
     >
       {/* Header row: name + distance */}
       <div className="parking-card-header">
@@ -379,9 +400,18 @@ function ParkingCard({
 
       {/* Navigate CTA */}
       <div className="parking-card-nav">
-        Navigate ↗
+        <a href={result.navigationUrl} target="_blank" rel="noopener noreferrer">
+          Google Maps
+        </a>
+        <a
+          href={appleDirectionsUrl(point)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Apple Maps
+        </a>
       </div>
-    </a>
+    </article>
   );
 }
 
@@ -421,6 +451,14 @@ function ParkingMap({
   const userToVenue = userPoint ? haversineMeters(userPoint, venue) : null;
   const carToVenue = carPoint ? haversineMeters(carPoint, venue) : null;
   const carToNearest = nearestParking(carPoint, results);
+  const venueGoogleUrl = googleDirectionsUrl(venue, userPoint ?? undefined);
+  const venueAppleUrl = appleDirectionsUrl(venue, userPoint ?? undefined);
+  const carGoogleUrl = carPoint
+    ? googleDirectionsUrl(carPoint, userPoint ?? undefined)
+    : null;
+  const carAppleUrl = carPoint
+    ? appleDirectionsUrl(carPoint, userPoint ?? undefined)
+    : null;
 
   useEffect(() => {
     try {
@@ -598,6 +636,27 @@ function ParkingMap({
       {carStatusText && (
         <div className="parking-car-status">{carStatusText}</div>
       )}
+      <div className="parking-route-actions">
+        <a href={venueGoogleUrl} target="_blank" rel="noopener noreferrer">
+          Google route to venue
+        </a>
+        <a href={venueAppleUrl} target="_blank" rel="noopener noreferrer">
+          Apple route to venue
+        </a>
+        {carGoogleUrl && (
+          <a href={carGoogleUrl} target="_blank" rel="noopener noreferrer">
+            Google route to car
+          </a>
+        )}
+        {carAppleUrl && (
+          <a href={carAppleUrl} target="_blank" rel="noopener noreferrer">
+            Apple route to car
+          </a>
+        )}
+      </div>
+      <div className="parking-privacy-note">
+        Device location and parked-car pins stay in this browser. Parking search uses venue coordinates only.
+      </div>
     </div>
   );
 }

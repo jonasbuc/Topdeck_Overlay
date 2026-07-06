@@ -7,6 +7,7 @@
 
 "use client";
 
+import { useMemo, useState } from "react";
 import type { TopDeckTable } from "@/lib/topdeck/types";
 
 interface Props {
@@ -14,10 +15,68 @@ interface Props {
   roundLabel: string;
 }
 
+type StatusFilter = "all" | "active" | "pending" | "completed";
+
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function tableStatusKey(table: TopDeckTable): Exclude<StatusFilter, "all"> {
+  if (table.status === "Completed") return "completed";
+  if (table.status === "Pending") return "pending";
+  return "active";
+}
+
+function tableResult(table: TopDeckTable): string {
+  if (table.status !== "Completed") return "—";
+  if (table.winner_id === "Draw") return "Draw";
+  return table.winner ?? "Completed";
+}
+
+function tableCopyText(table: TopDeckTable): string {
+  const players = table.players.map((player) => player.name).join(" vs ");
+  return `Table ${String(table.table)}: ${players}`;
+}
+
 export function PairingsTable({ tables, roundLabel }: Props) {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+
   // Filter out the special "Byes" row for the main display; show it separately
   const regularTables = tables.filter((t) => t.table !== "Byes");
   const byeRow = tables.find((t) => t.table === "Byes");
+  const completedCount = regularTables.filter((t) => t.status === "Completed").length;
+  const activeCount = regularTables.filter((t) => t.status === "Active").length;
+  const pendingCount = regularTables.filter((t) => t.status === "Pending").length;
+
+  const visibleTables = useMemo(() => {
+    const needle = normalize(query);
+    return regularTables.filter((table) => {
+      if (statusFilter !== "all" && tableStatusKey(table) !== statusFilter) {
+        return false;
+      }
+      if (!needle) return true;
+      return table.players.some((player) => normalize(player.name).includes(needle));
+    });
+  }, [query, regularTables, statusFilter]);
+
+  const copyTable = (table: TopDeckTable) => {
+    if (!navigator.clipboard) {
+      setCopyMessage("Clipboard unavailable");
+      return;
+    }
+    navigator.clipboard
+      .writeText(tableCopyText(table))
+      .then(() => {
+        setCopyMessage(`Copied table ${String(table.table)}`);
+        window.setTimeout(() => setCopyMessage(null), 1500);
+      })
+      .catch(() => {
+        setCopyMessage("Copy failed");
+        window.setTimeout(() => setCopyMessage(null), 1800);
+      });
+  };
 
   if (!tables.length) {
     return (
@@ -30,7 +89,44 @@ export function PairingsTable({ tables, roundLabel }: Props) {
 
   return (
     <section className="card">
-      <h2 className="section-title">Pairings — {roundLabel}</h2>
+      <div className="pairings-heading-row">
+        <h2 className="section-title">Pairings — {roundLabel}</h2>
+        <div className="pairings-summary">
+          <span>{regularTables.length} tables</span>
+          <span>{activeCount} active</span>
+          <span>{completedCount} done</span>
+        </div>
+      </div>
+
+      <div className="pairings-toolbar">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="pairings-search-input"
+          placeholder="Player name"
+          autoComplete="off"
+        />
+        <div className="pairings-filter-row">
+          {[
+            ["all", `All ${regularTables.length}`],
+            ["active", `Active ${activeCount}`],
+            ["pending", `Pending ${pendingCount}`],
+            ["completed", `Done ${completedCount}`],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`pairings-filter-btn ${
+                statusFilter === key ? "active" : ""
+              }`}
+              onClick={() => setStatusFilter(key as StatusFilter)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="table-wrapper">
         <table className="data-table">
           <thead>
@@ -38,10 +134,11 @@ export function PairingsTable({ tables, roundLabel }: Props) {
               <th>Table</th>
               <th>Players</th>
               <th>Result</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {regularTables.map((t) => {
+            {visibleTables.map((t) => {
               const isDraw = t.winner_id === "Draw";
               const statusClass =
                 t.status === "Completed"
@@ -78,12 +175,31 @@ export function PairingsTable({ tables, roundLabel }: Props) {
                       <span className="result pending">—</span>
                     )}
                   </td>
+                  <td className="pairing-action-cell">
+                    <button
+                      type="button"
+                      className="pairing-copy-btn"
+                      onClick={() => copyTable(t)}
+                    >
+                      Copy
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {visibleTables.length === 0 && (
+        <p className="empty-state pairings-empty-filter">
+          No tables match the current filter.
+        </p>
+      )}
+
+      {copyMessage && (
+        <div className="pairing-copy-message">{copyMessage}</div>
+      )}
 
       {byeRow && byeRow.players.length > 0 && (
         <div className="byes-section">

@@ -13,6 +13,8 @@ Receives signed [TopDeck.gg](https://topdeck.gg) webhooks and turns them into li
 - **Derived tournament state** maintained per `tid` in SQLite via Prisma
 - **Server-Sent Events** — real-time browser updates without a WebSocket server
 - **Live dashboard** at `/dashboard/[tid]` — round clock, pairings, results feed, standings, roster, round history browser
+- **Player companion page** at `/event/[tid]` — mobile-first live round view, player finder, pairings, standings, venue, and parking
+- **Tournament ops panel** — dashboard health checks for webhooks, TopDeck sync, Discord setup, parking cache, and public links
 - **OBS browser-source overlays** — transparent background, 1920×1080 optimized
 - **Post-tournament analytics** at `/analytics/[tid]` — podium, win rates, round-by-round performance matrix
 - **Round history viewer** — browse pairings and standings from every completed round
@@ -52,6 +54,7 @@ topdeck-live/
 │   │   ├── tournaments/[tid]/parking/      ← Parking API (geocode + cache + provider)
 │   │   └── discord/interactions/route.ts  ← Discord slash-command interaction handler
 │   ├── dashboard/[tid]/page.tsx            ← Live coverage dashboard (incl. parking)
+│   ├── event/[tid]/page.tsx                ← Public mobile player companion page
 │   ├── overlay/[tid]/                      ← OBS overlay pages
 │   ├── analytics/[tid]/page.tsx            ← Post-tournament stats
 │   └── venue/[tid]/page.tsx                ← Venue display (standings + clock)
@@ -64,6 +67,9 @@ topdeck-live/
 │   ├── DroppedPlayers.tsx
 │   ├── WinnerScreen.tsx
 │   ├── RoundHistoryViewer.tsx
+│   ├── EventCompanion.tsx                  ← Public player-facing event UI
+│   ├── TournamentOpsPanel.tsx              ← Dashboard integration health panel
+│   ├── DiscordSetupWizard.tsx              ← Dashboard Discord setup flow
 │   └── ParkingSection.tsx                  ← Collapsible parking card (dashboard)
 ├── hooks/
 │   └── useTournamentLive.ts                ← SSE hook
