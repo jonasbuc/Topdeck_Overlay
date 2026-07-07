@@ -13,6 +13,7 @@ import { RoundHistoryViewer } from "@/components/RoundHistoryViewer";
 import { ParkingSection } from "@/components/ParkingSection";
 import { TournamentOpsPanel } from "@/components/TournamentOpsPanel";
 import { DiscordSetupWizard } from "@/components/DiscordSetupWizard";
+import { EventOperationsPanel } from "@/components/EventOperationsPanel";
 import Link from "next/link";
 
 interface Props {
@@ -114,6 +115,8 @@ export default function DashboardPage({ params }: Props) {
             <DiscordSetupWizard tid={tid} />
           </div>
         )}
+
+        {state && <EventOperationsPanel tid={tid} />}
 
         {/* ── Overlay sources panel ───────────────────────────────────────── */}
         {state && (

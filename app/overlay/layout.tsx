@@ -9,18 +9,5 @@ export default function OverlayLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <html lang="en">
-      <head>
-        {/* Transparent background for OBS browser source */}
-        <style>{`
-          html, body {
-            background: transparent !important;
-            overflow: hidden;
-          }
-        `}</style>
-      </head>
-      <body className="overlay-body">{children}</body>
-    </html>
-  );
+  return <div className="overlay-body">{children}</div>;
 }

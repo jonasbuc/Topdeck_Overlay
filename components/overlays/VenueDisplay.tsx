@@ -22,13 +22,26 @@ import { useEffect, useState } from "react";
 import { RoundClock } from "@/components/RoundClock";
 import { resolveFeatureTable } from "@/components/overlays/FeatureMatch";
 import type { LiveTournamentState } from "@/lib/topdeck/types";
+import type {
+  TournamentAnnouncementDTO,
+  TournamentFloorMapDTO,
+} from "@/lib/event-ops/types";
 
-type SceneId = "clock" | "pairings" | "standings" | "feature";
-const BASE_SCENES: SceneId[] = ["clock", "pairings", "standings", "feature"];
+type SceneId = "clock" | "pairings" | "standings" | "floor" | "feature";
+const BASE_SCENES: SceneId[] = ["clock", "pairings", "standings", "floor", "feature"];
 
 interface Props {
+  tid: string;
   state: LiveTournamentState | null;
   sceneDurationMs?: number;
+}
+
+interface AnnouncementResponse {
+  announcements: TournamentAnnouncementDTO[];
+}
+
+interface FloorMapResponse {
+  floorMap: TournamentFloorMapDTO;
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
@@ -149,15 +162,84 @@ function FeatureScene({ state }: { state: LiveTournamentState | null }) {
   );
 }
 
+function FloorScene({ floorMap }: { floorMap: TournamentFloorMapDTO | null }) {
+  const zones = floorMap?.zones ?? [];
+
+  return (
+    <>
+      <p className="venue-scene-title">{floorMap?.title ?? "Venue Map"}</p>
+      {zones.length === 0 ? (
+        <p className="venue-empty">Floor map not configured…</p>
+      ) : (
+        <div className="venue-floor-grid">
+          {zones.map((zone) => (
+            <div key={zone.id} className="venue-floor-zone">
+              <span>Tables {zone.tableStart}-{zone.tableEnd}</span>
+              <strong>{zone.label}</strong>
+              {zone.detail && <p>{zone.detail}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+      {floorMap?.notes && <p className="venue-floor-note">{floorMap.notes}</p>}
+    </>
+  );
+}
+
+function VenueAnnouncementOverlay({
+  announcement,
+}: {
+  announcement: TournamentAnnouncementDTO | null;
+}) {
+  if (!announcement) return null;
+
+  return (
+    <div className={`venue-announcement-overlay ${announcement.tone}`}>
+      <span>Announcement</span>
+      <strong>{announcement.title}</strong>
+      <p>{announcement.body}</p>
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 
-export function VenueDisplay({ state, sceneDurationMs = 12_000 }: Props) {
+export function VenueDisplay({ tid, state, sceneDurationMs = 12_000 }: Props) {
   const [sceneIdx, setSceneIdx] = useState(0);
+  const [announcements, setAnnouncements] = useState<TournamentAnnouncementDTO[]>([]);
+  const [floorMap, setFloorMap] = useState<TournamentFloorMapDTO | null>(null);
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`/api/tournaments/${tid}/announcements?audience=venue`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: AnnouncementResponse | null) =>
+          setAnnouncements(data?.announcements ?? [])
+        )
+        .catch(() => setAnnouncements([]));
+
+      fetch(`/api/tournaments/${tid}/floor-map`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: FloorMapResponse | null) =>
+          setFloorMap(data?.floorMap ?? null)
+        )
+        .catch(() => setFloorMap(null));
+    };
+
+    load();
+    const id = window.setInterval(load, 10_000);
+    return () => window.clearInterval(id);
+  }, [tid]);
 
   // Only include the feature scene when an Active table exists
   const hasActiveTable =
     state?.tables.some((t) => t.table !== "Byes" && t.status === "Active") ?? false;
-  const scenes = BASE_SCENES.filter((s) => s !== "feature" || hasActiveTable);
+  const hasFloorMap = (floorMap?.zones.length ?? 0) > 0;
+  const scenes = BASE_SCENES.filter((s) => {
+    if (s === "feature") return hasActiveTable;
+    if (s === "floor") return hasFloorMap;
+    return true;
+  });
 
   useEffect(() => {
     if (scenes.length <= 1) return;
@@ -196,6 +278,12 @@ export function VenueDisplay({ state, sceneDurationMs = 12_000 }: Props) {
         <StandingsScene state={state} />
       </div>
 
+      {hasFloorMap && (
+        <div className={`venue-scene ${currentScene === "floor" ? "active" : "inactive"}`}>
+          <FloorScene floorMap={floorMap} />
+        </div>
+      )}
+
       {hasActiveTable && (
         <div className={`venue-scene ${currentScene === "feature" ? "active" : "inactive"}`}>
           <FeatureScene state={state} />
@@ -211,6 +299,8 @@ export function VenueDisplay({ state, sceneDurationMs = 12_000 }: Props) {
           />
         ))}
       </div>
+
+      <VenueAnnouncementOverlay announcement={announcements[0] ?? null} />
     </div>
   );
 }

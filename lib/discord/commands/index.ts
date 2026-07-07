@@ -18,6 +18,7 @@ export const CMD = {
   PAIRINGS: "pairings",
   PARKING: "parking",
   SETTINGS: "settings",
+  SETUP: "setup",
   TEST: "test",
 } as const;
 
@@ -70,6 +71,17 @@ export const COMMAND_DEFINITIONS = [
       sub
         .setName(CMD.SETTINGS)
         .setDescription("Show the current notification settings for this channel")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName(CMD.SETUP)
+        .setDescription("Guided setup links for a TopDeck Live tournament")
+        .addStringOption((opt) =>
+          opt
+            .setName("tid")
+            .setDescription("TopDeck tournament ID to link first")
+            .setRequired(false)
+        )
     )
     .addSubcommand((sub) =>
       sub

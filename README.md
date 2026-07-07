@@ -15,6 +15,7 @@ Receives signed [TopDeck.gg](https://topdeck.gg) webhooks and turns them into li
 - **Live dashboard** at `/dashboard/[tid]` — round clock, pairings, results feed, standings, roster, round history browser
 - **Player companion page** at `/event/[tid]` — mobile-first live round view, player finder, pairings, standings, venue, and parking
 - **Tournament ops panel** — dashboard health checks for webhooks, TopDeck sync, Discord setup, parking cache, and public links
+- **Event-day operations** — announcements, QR sharing, judge-call queue, and table/floor map for players and venue displays
 - **OBS browser-source overlays** — transparent background, 1920×1080 optimized
 - **Post-tournament analytics** at `/analytics/[tid]` — podium, win rates, round-by-round performance matrix
 - **Round history viewer** — browse pairings and standings from every completed round
@@ -68,6 +69,8 @@ topdeck-live/
 │   ├── WinnerScreen.tsx
 │   ├── RoundHistoryViewer.tsx
 │   ├── EventCompanion.tsx                  ← Public player-facing event UI
+│   ├── EventOperationsPanel.tsx            ← Announcements, QR, judge queue, floor map admin
+│   ├── EventOpsPublic.tsx                  ← Public announcements, judge call, floor map widgets
 │   ├── TournamentOpsPanel.tsx              ← Dashboard integration health panel
 │   ├── DiscordSetupWizard.tsx              ← Dashboard Discord setup flow
 │   └── ParkingSection.tsx                  ← Collapsible parking card (dashboard)
@@ -155,6 +158,27 @@ If `GOOGLE_MAPS_API_KEY` is missing when `google_places` is selected, the app si
 
 The `/topdeck parking` slash command posts a parking embed directly in Discord.  
 It shares the same cache as the dashboard, so repeated calls are instant.
+
+---
+
+## Event-day operations
+
+The dashboard includes organizer tools that make the overlay useful beyond stream graphics:
+
+| Tool | Where it appears |
+|---|---|
+| Announcements | Dashboard composer; player page banner; venue display overlay; optional Discord post |
+| QR / share | Dashboard QR code and share/copy actions for `/event/[tid]` |
+| Judge queue | Player page request form; dashboard triage queue |
+| Table / floor map | Dashboard editor; player page highlighted zone; venue display rotation |
+
+Data is stored locally in Prisma:
+
+- `TournamentAnnouncement`
+- `JudgeCall`
+- `TournamentFloorMap`
+
+Discord setup also supports `/topdeck setup [tid]`, which links a channel when a tournament ID is provided and returns quick buttons for the player page, dashboard, and venue display.
 
 ---
 

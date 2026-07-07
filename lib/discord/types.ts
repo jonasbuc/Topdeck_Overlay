@@ -153,9 +153,23 @@ export interface InteractionResponse {
   data?: {
     content?: string;
     embeds?: DiscordEmbed[];
+    components?: DiscordActionRow[];
     /** Ephemeral messages are only visible to the command invoker */
     flags?: number;
   };
+}
+
+export interface DiscordActionRow {
+  type: 1;
+  components: DiscordButton[];
+}
+
+export interface DiscordButton {
+  type: 2;
+  style: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  custom_id?: string;
+  url?: string;
 }
 
 /** Discord message flag: only the invoking user sees it */

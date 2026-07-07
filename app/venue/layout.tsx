@@ -16,19 +16,5 @@ export default function VenueLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <html lang="en">
-      <head>
-        <style>{`
-          html, body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #0f0f14;
-          }
-        `}</style>
-      </head>
-      <body>{children}</body>
-    </html>
-  );
+  return <div className="venue-layout-body">{children}</div>;
 }

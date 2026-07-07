@@ -34,5 +34,5 @@ export default function VenuePage({ params }: Props) {
     parseInt(searchParams.get("duration") ?? "12000", 10) || 12000
   );
 
-  return <VenueDisplay state={state} sceneDurationMs={sceneDurationMs} />;
+  return <VenueDisplay tid={tid} state={state} sceneDurationMs={sceneDurationMs} />;
 }

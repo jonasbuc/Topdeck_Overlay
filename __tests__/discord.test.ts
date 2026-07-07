@@ -8,8 +8,28 @@
  *   - lib/discord/commands/pairings.ts  — buildPairingsEmbeds (pure)
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import nacl from "tweetnacl";
+
+vi.mock("@/lib/discord/config-service", () => ({
+  getLinkByChannel: vi.fn(),
+  saveLink: vi.fn(),
+}));
+
+vi.mock("@/lib/env", () => ({
+  env: {
+    DATABASE_URL: "file:./dev.db",
+    TOPDECK_WEBHOOK_SECRET: "test-webhook-secret",
+    TOPDECK_API_KEY: null,
+    NEXT_PUBLIC_BASE_URL: "http://localhost:3000",
+    PARKING_PROVIDER: "overpass",
+    GOOGLE_MAPS_API_KEY: null,
+    DISCORD_BOT_TOKEN: null,
+    DISCORD_CLIENT_ID: null,
+    DISCORD_PUBLIC_KEY: null,
+    DISCORD_GUILD_ID: null,
+  },
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Ed25519 signature verification
@@ -252,5 +272,98 @@ describe("buildPairingsEmbeds", () => {
     const embeds = buildPairingsEmbeds(tables, "Round 3", "Test");
     const totalFields = embeds.reduce((n, e) => n + (e.fields?.length ?? 0), 0);
     expect(totalFields).toBe(6); // one field per table
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. /topdeck setup response
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { handleSetup } from "@/lib/discord/commands/setup";
+import {
+  getLinkByChannel,
+  saveLink,
+  type DiscordLinkRecord,
+} from "@/lib/discord/config-service";
+import type { DiscordInteraction } from "@/lib/discord/types";
+
+const mockedGetLinkByChannel = vi.mocked(getLinkByChannel);
+const mockedSaveLink = vi.mocked(saveLink);
+
+function makeSetupInteraction(
+  tid?: string,
+  permissions = "16"
+): DiscordInteraction {
+  return {
+    type: 2,
+    id: "interaction_1",
+    application_id: "app_1",
+    guild_id: "guild_1",
+    channel_id: "channel_1",
+    member: {
+      user: { id: "user_1", username: "Organizer" },
+      permissions,
+    },
+    token: "token_1",
+    data: {
+      id: "command_1",
+      name: "setup",
+      options: tid ? [{ name: "tid", type: 3, value: tid }] : [],
+    },
+  };
+}
+
+function makeLinkRecord(tid: string): DiscordLinkRecord {
+  const now = new Date("2026-07-07T00:00:00.000Z");
+  return {
+    id: "link_1",
+    tid,
+    guildId: "guild_1",
+    channelId: "channel_1",
+    settings: DEFAULT_SETTINGS,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+describe("handleSetup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetLinkByChannel.mockResolvedValue(null);
+    mockedSaveLink.mockResolvedValue(makeLinkRecord("tid_setup"));
+  });
+
+  it("links the current channel when tid is provided and returns action buttons", async () => {
+    const response = await handleSetup(makeSetupInteraction("tid_setup"));
+
+    expect(mockedSaveLink).toHaveBeenCalledWith("tid_setup", "guild_1", "channel_1");
+    expect(response.data?.embeds?.[0].title).toContain("complete");
+
+    const buttons = response.data?.components?.[0].components ?? [];
+    expect(buttons.map((button) => button.label)).toEqual([
+      "Player Page",
+      "Dashboard",
+      "Venue Display",
+    ]);
+    expect(buttons[0].url).toBe("http://localhost:3000/event/tid_setup");
+    expect(buttons[1].url).toBe("http://localhost:3000/dashboard/tid_setup");
+    expect(buttons[2].url).toBe("http://localhost:3000/venue/tid_setup");
+  });
+
+  it("uses an existing channel link when tid is omitted", async () => {
+    mockedGetLinkByChannel.mockResolvedValue(makeLinkRecord("tid_existing"));
+
+    const response = await handleSetup(makeSetupInteraction());
+
+    expect(mockedSaveLink).not.toHaveBeenCalled();
+    expect(mockedGetLinkByChannel).toHaveBeenCalledWith("channel_1");
+    expect(response.data?.embeds?.[0].description).toContain("tid_existing");
+  });
+
+  it("rejects linking when the user does not have Manage Channels", async () => {
+    const response = await handleSetup(makeSetupInteraction("tid_setup", "8"));
+
+    expect(mockedSaveLink).not.toHaveBeenCalled();
+    expect(response.data?.content).toMatch(/Manage Channels/);
   });
 });

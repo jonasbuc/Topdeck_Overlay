@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useTournamentLive } from "@/hooks/useTournamentLive";
 import { ParkingSection } from "@/components/ParkingSection";
 import { RoundClock } from "@/components/RoundClock";
+import {
+  EventAnnouncementBanner,
+  PlayerJudgeCallForm,
+  PublicFloorMap,
+} from "@/components/EventOpsPublic";
 import type {
   LiveTournamentState,
   TopDeckPlayer,
@@ -333,10 +338,14 @@ export function EventCompanion({ tid }: Props) {
       <main className="event-shell">
         <nav className="event-jump-nav" aria-label="Event sections">
           <a href="#player">Player</a>
+          <a href="#judge">Judge</a>
           <a href="#pairings">Pairings</a>
           <a href="#standings">Standings</a>
+          <a href="#floor-map">Map</a>
           {state.location && <a href="#parking">Parking</a>}
         </nav>
+
+        <EventAnnouncementBanner tid={tid} />
 
         <section className="event-round-panel">
           <div className="event-round-copy">
@@ -441,6 +450,14 @@ export function EventCompanion({ tid }: Props) {
           )}
         </section>
 
+        <div id="judge">
+          <PlayerJudgeCallForm
+            tid={tid}
+            selectedPlayer={selectedPlayer}
+            selectedTable={selectedTable}
+          />
+        </div>
+
         <section id="pairings" className="event-panel">
           <div className="event-panel-header">
             <h2>Pairings</h2>
@@ -515,6 +532,8 @@ export function EventCompanion({ tid }: Props) {
             <p className="event-muted-line">Standings will appear after round 1.</p>
           )}
         </section>
+
+        <PublicFloorMap tid={tid} selectedTable={selectedTable} />
 
         {state.location && (
           <section id="parking" className="event-parking-wrap">
