@@ -83,4 +83,11 @@ export const env = {
    * null in production (commands registered globally).
    */
   DISCORD_GUILD_ID: optionalEnv("DISCORD_GUILD_ID"),
+
+  /**
+   * Optional organizer/admin token. When set, dashboard/producer pages and
+   * mutating API routes require this token via ?admin=, topdeck_admin cookie,
+   * or x-topdeck-admin-token header.
+   */
+  TOPDECK_ADMIN_TOKEN: optionalEnv("TOPDECK_ADMIN_TOKEN"),
 } as const;

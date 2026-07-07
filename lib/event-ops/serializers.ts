@@ -6,6 +6,8 @@ import type {
 import {
   normalizeAudience,
   normalizeFloorMapZones,
+  normalizeJudgeCategory,
+  normalizeJudgePriority,
   normalizeJudgeStatus,
   normalizeTone,
   type JudgeCallDTO,
@@ -38,8 +40,13 @@ export function serializeJudgeCall(row: JudgeCall): JudgeCallDTO {
     playerName: row.playerName,
     message: row.message,
     status: normalizeJudgeStatus(row.status),
+    category: normalizeJudgeCategory(row.category),
+    priority: normalizeJudgePriority(row.priority),
+    assignedTo: row.assignedTo,
+    internalNote: row.internalNote,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
     resolvedAt: row.resolvedAt?.toISOString() ?? null,
   };
 }

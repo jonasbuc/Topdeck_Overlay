@@ -64,12 +64,38 @@ interface OpsHealth {
       | { status: "missing"; cacheKey: string | null }
       | { status: "no_coordinates"; cacheKey: null };
   };
+  eventOps: {
+    announcements: {
+      total: number;
+      pinned: number;
+      latest: {
+        id: string;
+        title: string;
+        audience: string;
+        createdAt: string;
+      } | null;
+    };
+    floorMap: {
+      configured: boolean;
+      zoneCount: number;
+      updatedAt: string | null;
+    };
+    judgeQueue: {
+      open: number;
+      acknowledged: number;
+      unresolved: number;
+      urgent: number;
+      oldestOpenAt: string | null;
+    };
+  };
   links: {
     player: string;
     dashboard: string;
     overlays: string;
     venue: string;
     analytics: string;
+    producer: string;
+    recap: string;
   };
 }
 
@@ -87,6 +113,13 @@ function healthClass(ok: boolean): string {
 function discordUrl(link: OpsHealth["discord"]["link"]): string | null {
   if (!link) return null;
   return `https://discord.com/channels/${link.guildId}/${link.channelId}`;
+}
+
+function minutesSince(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return null;
+  return Math.max(0, Math.round((Date.now() - time) / 60_000));
 }
 
 export function TournamentOpsPanel({ tid }: { tid: string }) {
@@ -120,6 +153,10 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
   };
 
   const stateOk = health?.state.exists === true;
+  const latestWebhookAge = minutesSince(health?.webhooks.latestEvent?.receivedAt);
+  const stateAge = minutesSince(
+    health?.state.exists ? health.state.updatedAt : null
+  );
   const webhookOk = (health?.webhooks.eventCount ?? 0) > 0;
   const discordOk =
     health?.discord.env.botTokenConfigured === true &&
@@ -128,17 +165,80 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
   const parkingOk =
     health?.parking.cache.status === "fresh" ||
     health?.parking.cache.status === "missing";
+  const floorMapOk = health?.eventOps.floorMap.configured === true;
+  const announcementOk = (health?.eventOps.announcements.pinned ?? 0) > 0;
+  const queueOk = (health?.eventOps.judgeQueue.urgent ?? 0) === 0;
   const channelUrl = health ? discordUrl(health.discord.link) : null;
+  const readiness = health
+    ? [
+        {
+          label: "Tournament data",
+          ok: stateOk && (stateAge == null || stateAge < 20),
+          detail: stateAge == null ? "No state yet" : `Updated ${stateAge} min ago`,
+        },
+        {
+          label: "TopDeck webhook",
+          ok: webhookOk,
+          detail:
+            latestWebhookAge == null
+              ? "No events yet"
+              : `Latest ${latestWebhookAge} min ago`,
+        },
+        {
+          label: "Discord channel",
+          ok: health.discord.link != null,
+          detail: health.discord.link ? "Linked" : "Run /topdeck setup",
+        },
+        {
+          label: "Player page",
+          ok: true,
+          detail: health.links.player,
+        },
+        {
+          label: "Venue display",
+          ok: floorMapOk,
+          detail: floorMapOk
+            ? `${health.eventOps.floorMap.zoneCount} floor zones`
+            : "Configure table map",
+        },
+        {
+          label: "Announcements",
+          ok: announcementOk,
+          detail: announcementOk
+            ? `${health.eventOps.announcements.pinned} pinned`
+            : "Post first announcement",
+        },
+        {
+          label: "Judge queue",
+          ok: queueOk,
+          detail:
+            health.eventOps.judgeQueue.unresolved === 0
+              ? "No active calls"
+              : `${health.eventOps.judgeQueue.unresolved} active / ${health.eventOps.judgeQueue.urgent} urgent`,
+        },
+        {
+          label: "Parking",
+          ok: parkingOk,
+          detail: health.parking.cache.status,
+        },
+      ]
+    : [];
+  const blockedCount = readiness.filter((item) => !item.ok).length;
 
   return (
-    <details className="card ops-panel">
+    <details className="card ops-panel" open>
       <summary className="ops-summary">
-        <span>Ops Health</span>
+        <span>Event-day Control Center</span>
         <span className="ops-summary-badges">
           <span className={`ops-health-dot ${healthClass(stateOk)}`} />
           <span className={`ops-health-dot ${healthClass(webhookOk)}`} />
           <span className={`ops-health-dot ${healthClass(discordOk)}`} />
           <span className={`ops-health-dot ${healthClass(parkingOk)}`} />
+          {health && (
+            <span className={`ops-readiness-pill ${blockedCount === 0 ? "ready" : ""}`}>
+              {blockedCount === 0 ? "Ready" : `${blockedCount} checks`}
+            </span>
+          )}
         </span>
       </summary>
 
@@ -158,6 +258,16 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
 
       {health && (
         <>
+          <div className="ops-checklist">
+            {readiness.map((item) => (
+              <div key={item.label} className={`ops-check-row ${item.ok ? "ok" : "warn"}`}>
+                <span>{item.ok ? "OK" : "Check"}</span>
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </div>
+            ))}
+          </div>
+
           <div className="ops-grid">
             <div className="ops-tile">
               <span className="ops-tile-label">State</span>
@@ -198,6 +308,28 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
             </div>
 
             <div className="ops-tile">
+              <span className="ops-tile-label">Judge Queue</span>
+              <strong>{health.eventOps.judgeQueue.unresolved}</strong>
+              <span>
+                {health.eventOps.judgeQueue.open} open /{" "}
+                {health.eventOps.judgeQueue.acknowledged} acknowledged
+              </span>
+              <small>
+                {health.eventOps.judgeQueue.urgent} urgent · oldest{" "}
+                {formatTime(health.eventOps.judgeQueue.oldestOpenAt)}
+              </small>
+            </div>
+
+            <div className="ops-tile">
+              <span className="ops-tile-label">Event Ops</span>
+              <strong>{health.eventOps.floorMap.zoneCount} zones</strong>
+              <span>{health.eventOps.announcements.pinned} pinned announcements</span>
+              <small>
+                Latest: {health.eventOps.announcements.latest?.title ?? "none"}
+              </small>
+            </div>
+
+            <div className="ops-tile">
               <span className="ops-tile-label">Parking</span>
               <strong>{health.parking.cache.status}</strong>
               <span>{health.parking.provider}</span>
@@ -213,7 +345,9 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
             <Link href={health.links.player} target="_blank">Player page</Link>
             <Link href={health.links.overlays} target="_blank">Overlays</Link>
             <Link href={health.links.venue} target="_blank">Venue display</Link>
+            <Link href={health.links.producer} target="_blank">Producer mode</Link>
             <Link href={health.links.analytics}>Analytics</Link>
+            <Link href={health.links.recap}>Recap</Link>
           </div>
 
           <div className="ops-events">

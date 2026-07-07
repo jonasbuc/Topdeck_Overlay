@@ -168,8 +168,9 @@ export function DiscordSetupWizard({ tid }: { tid: string }) {
       </div>
 
       <div className="discord-command-box">
-        <code>/topdeck setup tid:{tid}</code>
-        <code>/topdeck link tid:{tid}</code>
+          <code>/topdeck setup tid:{tid}</code>
+          <code>/topdeck link tid:{tid}</code>
+          <code>/topdeck event tid:{tid}</code>
       </div>
 
       <div className="discord-form-grid">

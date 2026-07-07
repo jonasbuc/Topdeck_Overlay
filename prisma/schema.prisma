@@ -172,12 +172,18 @@ model JudgeCall {
   playerName  String?
   message     String?
   status      String  @default("open") // "open" | "acknowledged" | "resolved"
+  category    String  @default("rules") // "rules" | "deck_check" | "missing_player" | "result_issue" | "logistics" | "other"
+  priority    String  @default("normal") // "low" | "normal" | "high" | "urgent"
+  assignedTo  String?
+  internalNote String?
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  resolvedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
 
   @@index([tid, status])
+  @@index([tid, priority])
   @@index([tid, createdAt])
 }
 

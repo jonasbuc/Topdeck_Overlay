@@ -39,6 +39,11 @@ interface DiscordSnapshot {
 
 type TableStatusFilter = "all" | "active" | "pending" | "completed";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
 function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -189,6 +194,8 @@ export function EventCompanion({ tid }: Props) {
   const [tableFilter, setTableFilter] = useState<TableStatusFilter>("all");
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [discord, setDiscord] = useState<DiscordSnapshot | null>(null);
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
 
   const playerStorageKey = `topdeck-live:${tid}:event-player`;
 
@@ -206,6 +213,21 @@ export function EventCompanion({ tid }: Props) {
       .then((data: DiscordSnapshot | null) => setDiscord(data))
       .catch(() => setDiscord(null));
   }, [tid]);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    return () =>
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+  }, []);
 
   const players = useMemo(() => (state ? collectPlayers(state) : []), [state]);
   const selectedPlayer =
@@ -280,6 +302,12 @@ export function EventCompanion({ tid }: Props) {
       });
   };
 
+  const installApp = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt().catch(() => {});
+    installPrompt.userChoice.finally(() => setInstallPrompt(null));
+  };
+
   if (!state) {
     return (
       <div className="event-page">
@@ -322,6 +350,16 @@ export function EventCompanion({ tid }: Props) {
               <a className="event-discord-link" href={channelUrl} target="_blank" rel="noreferrer">
                 Discord
               </a>
+            )}
+            {state.finished && (
+              <Link className="event-discord-link" href={`/recap/${tid}`}>
+                Recap
+              </Link>
+            )}
+            {installPrompt && (
+              <button type="button" className="event-install-btn" onClick={installApp}>
+                Install
+              </button>
             )}
           </div>
 

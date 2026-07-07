@@ -575,6 +575,7 @@ function ParkingMap({
 
       <div className="parking-map-canvas" role="img" aria-label="Parking map">
         {model.tiles.map((tile) => (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             key={tile.key}
             src={tile.url}

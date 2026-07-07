@@ -22,6 +22,14 @@ export interface TournamentAnnouncementDTO {
 }
 
 export type JudgeCallStatus = "open" | "acknowledged" | "resolved";
+export type JudgeCallCategory =
+  | "rules"
+  | "deck_check"
+  | "missing_player"
+  | "result_issue"
+  | "logistics"
+  | "other";
+export type JudgeCallPriority = "low" | "normal" | "high" | "urgent";
 
 export interface JudgeCallDTO {
   id: string;
@@ -30,8 +38,13 @@ export interface JudgeCallDTO {
   playerName: string | null;
   message: string | null;
   status: JudgeCallStatus;
+  category: JudgeCallCategory;
+  priority: JudgeCallPriority;
+  assignedTo: string | null;
+  internalNote: string | null;
   createdAt: string;
   updatedAt: string;
+  acknowledgedAt: string | null;
   resolvedAt: string | null;
 }
 
@@ -72,6 +85,22 @@ export const JUDGE_CALL_STATUSES: JudgeCallStatus[] = [
   "resolved",
 ];
 
+export const JUDGE_CALL_CATEGORIES: JudgeCallCategory[] = [
+  "rules",
+  "deck_check",
+  "missing_player",
+  "result_issue",
+  "logistics",
+  "other",
+];
+
+export const JUDGE_CALL_PRIORITIES: JudgeCallPriority[] = [
+  "low",
+  "normal",
+  "high",
+  "urgent",
+];
+
 export function normalizeTone(value: unknown): AnnouncementTone {
   return ANNOUNCEMENT_TONES.includes(value as AnnouncementTone)
     ? (value as AnnouncementTone)
@@ -88,6 +117,18 @@ export function normalizeJudgeStatus(value: unknown): JudgeCallStatus {
   return JUDGE_CALL_STATUSES.includes(value as JudgeCallStatus)
     ? (value as JudgeCallStatus)
     : "open";
+}
+
+export function normalizeJudgeCategory(value: unknown): JudgeCallCategory {
+  return JUDGE_CALL_CATEGORIES.includes(value as JudgeCallCategory)
+    ? (value as JudgeCallCategory)
+    : "rules";
+}
+
+export function normalizeJudgePriority(value: unknown): JudgeCallPriority {
+  return JUDGE_CALL_PRIORITIES.includes(value as JudgeCallPriority)
+    ? (value as JudgeCallPriority)
+    : "normal";
 }
 
 export function normalizeFloorMapZones(value: unknown): FloorMapZone[] {

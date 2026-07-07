@@ -14,8 +14,11 @@ Receives signed [TopDeck.gg](https://topdeck.gg) webhooks and turns them into li
 - **Server-Sent Events** — real-time browser updates without a WebSocket server
 - **Live dashboard** at `/dashboard/[tid]` — round clock, pairings, results feed, standings, roster, round history browser
 - **Player companion page** at `/event/[tid]` — mobile-first live round view, player finder, pairings, standings, venue, and parking
-- **Tournament ops panel** — dashboard health checks for webhooks, TopDeck sync, Discord setup, parking cache, and public links
-- **Event-day operations** — announcements, QR sharing, judge-call queue, and table/floor map for players and venue displays
+- **Player PWA** — installable player companion with service-worker offline fallback
+- **Event-day Control Center** — readiness checklist for webhook health, TopDeck sync, Discord setup, announcements, judge queue, floor map, parking, and public links
+- **Event-day operations** — announcements, QR sharing, Judge Queue V2, and table/floor map for players and venue displays
+- **Producer mode** at `/producer/[tid]` — stream control surface with overlay preview, source links, feature-table controls, and venue announcements
+- **Event recap** at `/recap/[tid]` — public post-event summary with champion, standings, and round history
 - **OBS browser-source overlays** — transparent background, 1920×1080 optimized
 - **Post-tournament analytics** at `/analytics/[tid]` — podium, win rates, round-by-round performance matrix
 - **Round history viewer** — browse pairings and standings from every completed round
@@ -40,6 +43,9 @@ All overlays are transparent-background browser sources designed for OBS at 1920
 | `/overlay/[tid]/standings` | Live standings leaderboard |
 | `/overlay/[tid]/ticker` | Scrolling ticker with current round results |
 | `/overlay/[tid]/winner` | Full-screen winner celebration (auto-shows on `tournament.finished`) |
+| `/venue/[tid]` | Venue projector rotation with clock, pairings, standings, floor map, and announcements |
+
+Producer control is available at `/producer/[tid]` and links directly to each OBS source.
 
 ---
 
@@ -56,6 +62,9 @@ topdeck-live/
 │   │   └── discord/interactions/route.ts  ← Discord slash-command interaction handler
 │   ├── dashboard/[tid]/page.tsx            ← Live coverage dashboard (incl. parking)
 │   ├── event/[tid]/page.tsx                ← Public mobile player companion page
+│   ├── producer/[tid]/page.tsx             ← Stream producer control panel
+│   ├── recap/[tid]/page.tsx                ← Public event recap
+│   ├── manifest.ts                         ← PWA manifest
 │   ├── overlay/[tid]/                      ← OBS overlay pages
 │   ├── analytics/[tid]/page.tsx            ← Post-tournament stats
 │   └── venue/[tid]/page.tsx                ← Venue display (standings + clock)
@@ -71,6 +80,7 @@ topdeck-live/
 │   ├── EventCompanion.tsx                  ← Public player-facing event UI
 │   ├── EventOperationsPanel.tsx            ← Announcements, QR, judge queue, floor map admin
 │   ├── EventOpsPublic.tsx                  ← Public announcements, judge call, floor map widgets
+│   ├── ProducerMode.tsx                    ← Stream producer controls + overlay preview
 │   ├── TournamentOpsPanel.tsx              ← Dashboard integration health panel
 │   ├── DiscordSetupWizard.tsx              ← Dashboard Discord setup flow
 │   └── ParkingSection.tsx                  ← Collapsible parking card (dashboard)
@@ -169,8 +179,11 @@ The dashboard includes organizer tools that make the overlay useful beyond strea
 |---|---|
 | Announcements | Dashboard composer; player page banner; venue display overlay; optional Discord post |
 | QR / share | Dashboard QR code and share/copy actions for `/event/[tid]` |
-| Judge queue | Player page request form; dashboard triage queue |
-| Table / floor map | Dashboard editor; player page highlighted zone; venue display rotation |
+| Judge Queue V2 | Player page request form with categories; dashboard triage queue with priority, assignee, internal notes, status history |
+| Table / floor map | Dashboard editor; player page highlighted "find my table" zone; venue display rotation |
+| Event hub | Discord `/topdeck event` command posts player links for the whole event |
+| Producer mode | `/producer/[tid]` preview/control panel for stream operators |
+| Event recap | `/recap/[tid]` shareable post-event summary |
 
 Data is stored locally in Prisma:
 
@@ -179,6 +192,10 @@ Data is stored locally in Prisma:
 - `TournamentFloorMap`
 
 Discord setup also supports `/topdeck setup [tid]`, which links a channel when a tournament ID is provided and returns quick buttons for the player page, dashboard, and venue display.
+
+### Admin protection
+
+Set `TOPDECK_ADMIN_TOKEN` to protect dashboard/producer pages and mutating tournament APIs. When configured, pass it once as `?admin=<token>`; the app stores a secure `topdeck_admin` cookie for later requests. Public player pages and public judge-call submission remain open.
 
 ---
 
@@ -266,6 +283,7 @@ All commands are under the `/topdeck` group.
 | `/topdeck standings [top]` | Everyone | Post current standings (optional: show top N) |
 | `/topdeck pairings` | Everyone | Post current round pairings |
 | `/topdeck parking` | Everyone | Post nearby parking for the venue |
+| `/topdeck event [tid]` | Everyone | Post a public event hub with player links |
 | `/topdeck settings` | Everyone | Show current notification settings (ephemeral) |
 | `/topdeck test` | Manage Channels | Post a test embed to verify the bot is working |
 
@@ -310,6 +328,7 @@ In the Vercel dashboard → **Settings → Environment Variables**, add:
 | `TOPDECK_API_KEY` | Your TopDeck API key (optional — for enrichment) |
 | `DATABASE_URL` | Your production database URL (see note below) |
 | `NEXT_PUBLIC_BASE_URL` | `https://your-app.vercel.app` |
+| `TOPDECK_ADMIN_TOKEN` | Optional organizer/admin token for dashboard and producer mode |
 | `DISCORD_BOT_TOKEN` | Bot token (optional — Discord features) |
 | `DISCORD_CLIENT_ID` | Application ID (optional — Discord features) |
 | `DISCORD_PUBLIC_KEY` | Ed25519 public key (optional — Discord features) |

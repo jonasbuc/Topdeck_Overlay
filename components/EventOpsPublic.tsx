@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TopDeckTable } from "@/lib/topdeck/types";
 import type {
   FloorMapZone,
+  JudgeCallCategory,
   JudgeCallDTO,
   TournamentAnnouncementDTO,
   TournamentFloorMapDTO,
 } from "@/lib/event-ops/types";
+import { JUDGE_CALL_CATEGORIES } from "@/lib/event-ops/types";
 
 interface AnnouncementResponse {
   announcements: TournamentAnnouncementDTO[];
@@ -20,6 +22,15 @@ interface FloorMapResponse {
 interface JudgeCallResponse {
   call: JudgeCallDTO;
 }
+
+const CATEGORY_LABELS: Record<JudgeCallCategory, string> = {
+  rules: "Rules question",
+  deck_check: "Deck check",
+  missing_player: "Missing player",
+  result_issue: "Result issue",
+  logistics: "Logistics",
+  other: "Other",
+};
 
 export interface EventSelectedPlayer {
   id: string;
@@ -87,6 +98,7 @@ export function PlayerJudgeCallForm({
 }) {
   const [playerName, setPlayerName] = useState("");
   const [table, setTable] = useState("");
+  const [category, setCategory] = useState<JudgeCallCategory>("rules");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -109,6 +121,7 @@ export function PlayerJudgeCallForm({
         body: JSON.stringify({
           tableNumber: table,
           playerName,
+          category,
           message,
         }),
       });
@@ -141,6 +154,16 @@ export function PlayerJudgeCallForm({
           onChange={(event) => setTable(event.target.value)}
           placeholder="Table"
         />
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value as JudgeCallCategory)}
+        >
+          {JUDGE_CALL_CATEGORIES.map((option) => (
+            <option key={option} value={option}>
+              {CATEGORY_LABELS[option]}
+            </option>
+          ))}
+        </select>
       </div>
       <textarea
         value={message}
@@ -193,6 +216,20 @@ export function PublicFloorMap({
         <h2>{floorMap.title}</h2>
         {selectedZone && <span className="event-count-pill">{selectedZone.label}</span>}
       </div>
+      {selectedTable && typeof selectedTable.table === "number" && (
+        <div className="event-find-table-card">
+          <span>Your table</span>
+          <strong>Table {selectedTable.table}</strong>
+          {selectedZone ? (
+            <p>
+              Go to {selectedZone.label}
+              {selectedZone.detail ? ` · ${selectedZone.detail}` : ""}.
+            </p>
+          ) : (
+            <p>This table is not mapped yet. Ask a TO near the scorekeeper station.</p>
+          )}
+        </div>
+      )}
       {floorMap.notes && <p className="event-muted-line">{floorMap.notes}</p>}
       <div className="event-floor-zone-grid">
         {zones.map((zone) => (

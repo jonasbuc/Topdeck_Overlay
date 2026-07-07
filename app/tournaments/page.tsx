@@ -134,6 +134,7 @@ export default function TournamentsPage() {
               <div key={tid} className="tournament-card">
                 {/* Header image or gradient bar */}
                 {(t as TopDeckMyTournament).headerImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={(t as TopDeckMyTournament).headerImage!}
                     alt={t.name}

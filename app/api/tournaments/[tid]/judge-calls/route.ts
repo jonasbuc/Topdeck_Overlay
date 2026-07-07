@@ -8,7 +8,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { serializeJudgeCall } from "@/lib/event-ops/serializers";
-import { normalizeJudgeStatus } from "@/lib/event-ops/types";
+import {
+  normalizeJudgeCategory,
+  normalizeJudgePriority,
+  normalizeJudgeStatus,
+} from "@/lib/event-ops/types";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +59,8 @@ export async function POST(
   const tableNumber = cleanText(body.tableNumber, 24);
   const playerName = cleanText(body.playerName, 80);
   const message = cleanText(body.message, 300);
+  const category = normalizeJudgeCategory(body.category);
+  const priority = normalizeJudgePriority(body.priority);
 
   if (!tableNumber && !playerName && !message) {
     return NextResponse.json(
@@ -69,6 +75,8 @@ export async function POST(
       tableNumber: tableNumber || null,
       playerName: playerName || null,
       message: message || null,
+      category,
+      priority,
     },
   });
 
@@ -82,7 +90,16 @@ export async function PATCH(
   const { tid } = await params;
   const body = await readJson(req);
   const id = cleanText(body.id, 128);
-  const status = normalizeJudgeStatus(body.status);
+  const requestedStatus =
+    typeof body.status === "string" ? normalizeJudgeStatus(body.status) : null;
+  const assignedTo =
+    typeof body.assignedTo === "string"
+      ? cleanText(body.assignedTo, 80) || null
+      : undefined;
+  const internalNote =
+    typeof body.internalNote === "string"
+      ? cleanText(body.internalNote, 500) || null
+      : undefined;
 
   if (!id) {
     return NextResponse.json({ error: "id_required" }, { status: 400 });
@@ -93,11 +110,35 @@ export async function PATCH(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  const status = requestedStatus ?? normalizeJudgeStatus(existing.status);
+  const nextAcknowledgedAt =
+    status === "acknowledged" && !existing.acknowledgedAt
+      ? new Date()
+      : status === "open"
+      ? null
+      : existing.acknowledgedAt;
+
   const row = await prisma.judgeCall.update({
     where: { id },
     data: {
-      status,
-      resolvedAt: status === "resolved" ? new Date() : null,
+      ...(requestedStatus ? { status } : {}),
+      ...(typeof body.category === "string"
+        ? { category: normalizeJudgeCategory(body.category) }
+        : {}),
+      ...(typeof body.priority === "string"
+        ? { priority: normalizeJudgePriority(body.priority) }
+        : {}),
+      ...(assignedTo !== undefined ? { assignedTo } : {}),
+      ...(internalNote !== undefined ? { internalNote } : {}),
+      ...(requestedStatus
+        ? {
+            acknowledgedAt:
+              status === "resolved" && !nextAcknowledgedAt
+                ? new Date()
+                : nextAcknowledgedAt,
+            resolvedAt: status === "resolved" ? new Date() : null,
+          }
+        : {}),
     },
   });
 

@@ -33,6 +33,7 @@ import { handleUnlink } from "@/lib/discord/commands/unlink";
 import { handleStandings } from "@/lib/discord/commands/standings";
 import { handlePairings } from "@/lib/discord/commands/pairings";
 import { handleParking } from "@/lib/discord/commands/parking";
+import { handleEventHub } from "@/lib/discord/commands/event";
 import { handleSettings } from "@/lib/discord/commands/settings";
 import { handleSetup } from "@/lib/discord/commands/setup";
 import { handleTest } from "@/lib/discord/commands/test";
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
         case CMD.STANDINGS:  response = await handleStandings(commandInteraction); break;
         case CMD.PAIRINGS:   response = await handlePairings(commandInteraction); break;
         case CMD.PARKING:    response = await handleParking(commandInteraction); break;
+        case CMD.EVENT:      response = await handleEventHub(commandInteraction); break;
         case CMD.SETTINGS:   response = await handleSettings(commandInteraction); break;
         case CMD.SETUP:      response = await handleSetup(commandInteraction); break;
         case CMD.TEST:       response = await handleTest(commandInteraction); break;

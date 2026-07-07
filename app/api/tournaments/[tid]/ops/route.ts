@@ -77,6 +77,51 @@ export async function GET(
       getLinkByTid(tid),
     ]);
 
+  const [announcementCount, pinnedAnnouncementCount, latestAnnouncement, floorMap, judgeCalls] =
+    await Promise.all([
+      prisma.tournamentAnnouncement.count({ where: { tid } }),
+      prisma.tournamentAnnouncement.count({ where: { tid, pinned: true } }),
+      prisma.tournamentAnnouncement.findFirst({
+        where: { tid },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, title: true, audience: true, createdAt: true },
+      }),
+      prisma.tournamentFloorMap.findUnique({ where: { tid } }),
+      prisma.judgeCall.findMany({
+        where: { tid },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          resolvedAt: true,
+        },
+      }),
+    ]);
+
+  const openJudgeCalls = judgeCalls.filter((call) => call.status === "open");
+  const acknowledgedJudgeCalls = judgeCalls.filter(
+    (call) => call.status === "acknowledged"
+  );
+  const unresolvedJudgeCalls = judgeCalls.filter(
+    (call) => call.status !== "resolved"
+  );
+  const urgentJudgeCalls = unresolvedJudgeCalls.filter(
+    (call) => call.priority === "urgent"
+  );
+
+  let floorZoneCount = 0;
+  if (floorMap) {
+    try {
+      const zones = JSON.parse(floorMap.zones);
+      floorZoneCount = Array.isArray(zones) ? zones.length : 0;
+    } catch {
+      floorZoneCount = 0;
+    }
+  }
+
   let parkingCache: ParkingCacheHealth = {
     status: "no_coordinates",
     cacheKey: null,
@@ -148,12 +193,46 @@ export async function GET(
         googleMapsKeyConfigured: env.GOOGLE_MAPS_API_KEY != null,
         cache: parkingCache,
       },
+      eventOps: {
+        announcements: {
+          total: announcementCount,
+          pinned: pinnedAnnouncementCount,
+          latest: latestAnnouncement
+            ? {
+                id: latestAnnouncement.id,
+                title: latestAnnouncement.title,
+                audience: latestAnnouncement.audience,
+                createdAt: latestAnnouncement.createdAt.toISOString(),
+              }
+            : null,
+        },
+        floorMap: {
+          configured: floorZoneCount > 0,
+          zoneCount: floorZoneCount,
+          updatedAt: floorMap?.updatedAt.toISOString() ?? null,
+        },
+        judgeQueue: {
+          open: openJudgeCalls.length,
+          acknowledged: acknowledgedJudgeCalls.length,
+          unresolved: unresolvedJudgeCalls.length,
+          urgent: urgentJudgeCalls.length,
+          oldestOpenAt:
+            openJudgeCalls.length > 0
+              ? openJudgeCalls
+                  .slice()
+                  .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0]
+                  .createdAt.toISOString()
+              : null,
+        },
+      },
       links: {
         player: `/event/${tid}`,
         dashboard: `/dashboard/${tid}`,
         overlays: `/overlay/${tid}`,
         venue: `/venue/${tid}`,
         analytics: `/analytics/${tid}`,
+        producer: `/producer/${tid}`,
+        recap: `/recap/${tid}`,
       },
     },
     { headers: { "Cache-Control": "no-store" } }

@@ -16,6 +16,10 @@ vi.mock("@/lib/discord/config-service", () => ({
   saveLink: vi.fn(),
 }));
 
+vi.mock("@/lib/topdeck/tournament-state", () => ({
+  getTournamentState: vi.fn(),
+}));
+
 vi.mock("@/lib/env", () => ({
   env: {
     DATABASE_URL: "file:./dev.db",
@@ -28,6 +32,7 @@ vi.mock("@/lib/env", () => ({
     DISCORD_CLIENT_ID: null,
     DISCORD_PUBLIC_KEY: null,
     DISCORD_GUILD_ID: null,
+    TOPDECK_ADMIN_TOKEN: null,
   },
 }));
 
@@ -280,15 +285,18 @@ describe("buildPairingsEmbeds", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { handleSetup } from "@/lib/discord/commands/setup";
+import { handleEventHub } from "@/lib/discord/commands/event";
 import {
   getLinkByChannel,
   saveLink,
   type DiscordLinkRecord,
 } from "@/lib/discord/config-service";
 import type { DiscordInteraction } from "@/lib/discord/types";
+import { getTournamentState } from "@/lib/topdeck/tournament-state";
 
 const mockedGetLinkByChannel = vi.mocked(getLinkByChannel);
 const mockedSaveLink = vi.mocked(saveLink);
+const mockedGetTournamentState = vi.mocked(getTournamentState);
 
 function makeSetupInteraction(
   tid?: string,
@@ -331,6 +339,7 @@ describe("handleSetup", () => {
     vi.clearAllMocks();
     mockedGetLinkByChannel.mockResolvedValue(null);
     mockedSaveLink.mockResolvedValue(makeLinkRecord("tid_setup"));
+    mockedGetTournamentState.mockResolvedValue(null);
   });
 
   it("links the current channel when tid is provided and returns action buttons", async () => {
@@ -365,5 +374,41 @@ describe("handleSetup", () => {
 
     expect(mockedSaveLink).not.toHaveBeenCalled();
     expect(response.data?.content).toMatch(/Manage Channels/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. /topdeck event hub response
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("handleEventHub", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetLinkByChannel.mockResolvedValue(makeLinkRecord("tid_event"));
+    mockedGetTournamentState.mockResolvedValue({
+      tid: "tid_event",
+      name: "cEDH Invitational",
+      status: "Ongoing",
+      roundLabel: "Round 4",
+      currentRound: 4,
+      finished: false,
+    } as Awaited<ReturnType<typeof getTournamentState>>);
+  });
+
+  it("returns a public event hub with player links", async () => {
+    const response = await handleEventHub(makeSetupInteraction());
+
+    expect(response.data?.flags).toBeUndefined();
+    expect(response.data?.embeds?.[0].title).toBe("cEDH Invitational");
+    const buttons = response.data?.components?.[0].components ?? [];
+    expect(buttons.map((button) => button.label)).toEqual([
+      "Player Hub",
+      "Pairings",
+      "Standings",
+      "Venue Map",
+      "Recap",
+    ]);
+    expect(buttons[0].url).toBe("http://localhost:3000/event/tid_event");
+    expect(buttons[4].url).toBe("http://localhost:3000/recap/tid_event");
   });
 });

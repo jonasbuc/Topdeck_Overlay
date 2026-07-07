@@ -37,12 +37,19 @@ describe("event operations serializers", () => {
       playerName: "Player One",
       message: "Need oracle text",
       status: "triaged",
+      category: "mystery",
+      priority: "panic",
+      assignedTo: null,
+      internalNote: null,
       createdAt: now,
       updatedAt: now,
+      acknowledgedAt: null,
       resolvedAt: null,
     });
 
     expect(dto.status).toBe("open");
+    expect(dto.category).toBe("rules");
+    expect(dto.priority).toBe("normal");
     expect(dto.resolvedAt).toBeNull();
   });
 

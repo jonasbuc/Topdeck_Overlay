@@ -17,6 +17,7 @@ export const CMD = {
   STANDINGS: "standings",
   PAIRINGS: "pairings",
   PARKING: "parking",
+  EVENT: "event",
   SETTINGS: "settings",
   SETUP: "setup",
   TEST: "test",
@@ -66,6 +67,17 @@ export const COMMAND_DEFINITIONS = [
       sub
         .setName(CMD.PARKING)
         .setDescription("Post parking options near the tournament venue")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName(CMD.EVENT)
+        .setDescription("Post a public event hub with useful player links")
+        .addStringOption((opt) =>
+          opt
+            .setName("tid")
+            .setDescription("TopDeck tournament ID (defaults to linked channel)")
+            .setRequired(false)
+        )
     )
     .addSubcommand((sub) =>
       sub

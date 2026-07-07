@@ -5,9 +5,15 @@ import type {
   AnnouncementAudience,
   AnnouncementTone,
   FloorMapZone,
+  JudgeCallCategory,
   JudgeCallDTO,
+  JudgeCallPriority,
   TournamentAnnouncementDTO,
   TournamentFloorMapDTO,
+} from "@/lib/event-ops/types";
+import {
+  JUDGE_CALL_CATEGORIES,
+  JUDGE_CALL_PRIORITIES,
 } from "@/lib/event-ops/types";
 
 interface Props {
@@ -29,6 +35,26 @@ interface FloorMapResponse {
 
 const TONES: AnnouncementTone[] = ["info", "success", "warning", "urgent"];
 const AUDIENCES: AnnouncementAudience[] = ["all", "players", "venue", "discord"];
+const CATEGORY_LABELS: Record<JudgeCallCategory, string> = {
+  rules: "Rules",
+  deck_check: "Deck check",
+  missing_player: "Missing player",
+  result_issue: "Result issue",
+  logistics: "Logistics",
+  other: "Other",
+};
+const PRIORITY_LABELS: Record<JudgeCallPriority, string> = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
+  urgent: "Urgent",
+};
+const PRIORITY_ORDER: Record<JudgeCallPriority, number> = {
+  urgent: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+};
 
 function formatTime(value: string | null): string {
   if (!value) return "-";
@@ -36,6 +62,18 @@ function formatTime(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatWait(value: string, doneAt?: string | null): string {
+  const start = new Date(value).getTime();
+  const end = doneAt ? new Date(doneAt).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return "-";
+  const minutes = Math.max(0, Math.round((end - start) / 60_000));
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
 }
 
 function newZone(index: number): FloorMapZone {
@@ -271,6 +309,7 @@ function ShareQrPanel({ tid }: Props) {
       </div>
 
       <div className="share-qr-layout">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={qrUrl} alt="QR code for player page" />
         <div>
           <code>{url}</code>
@@ -309,23 +348,47 @@ function JudgeQueuePanel({ tid }: Props) {
     return () => window.clearInterval(id);
   }, [load]);
 
-  const setStatus = async (call: JudgeCallDTO, status: JudgeCallDTO["status"]) => {
+  const patchCall = async (
+    call: JudgeCallDTO,
+    patch: Partial<
+      Pick<
+        JudgeCallDTO,
+        "status" | "priority" | "category" | "assignedTo" | "internalNote"
+      >
+    >
+  ) => {
     await fetch(`/api/tournaments/${tid}/judge-calls`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: call.id, status }),
+      body: JSON.stringify({ id: call.id, ...patch }),
     });
     load();
   };
 
   const openCount = calls.filter((call) => call.status === "open").length;
+  const urgentCount = calls.filter(
+    (call) => call.status !== "resolved" && call.priority === "urgent"
+  ).length;
+  const sortedCalls = useMemo(
+    () =>
+      calls.slice().sort((a, b) => {
+        if (a.status === "resolved" && b.status !== "resolved") return 1;
+        if (a.status !== "resolved" && b.status === "resolved") return -1;
+        const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }),
+    [calls]
+  );
 
   return (
     <section className="card event-ops-card judge-queue-card">
       <div className="event-ops-card-header">
         <div>
           <h2>Judge Queue</h2>
-          <p>{openCount} open request{openCount === 1 ? "" : "s"}</p>
+          <p>
+            {openCount} open · {urgentCount} urgent · {calls.length} visible
+          </p>
         </div>
         <label className="event-ops-check">
           <input
@@ -341,25 +404,112 @@ function JudgeQueuePanel({ tid }: Props) {
         {calls.length === 0 && (
           <p className="empty-state">No judge calls right now.</p>
         )}
-        {calls.map((call) => (
-          <article key={call.id} className={`judge-call-row ${call.status}`}>
+        {sortedCalls.map((call) => (
+          <article
+            key={call.id}
+            className={`judge-call-row ${call.status} priority-${call.priority}`}
+          >
             <div>
               <span>
                 {call.tableNumber ? `Table ${call.tableNumber}` : "No table"} ·
-                {" "}{formatTime(call.createdAt)}
+                {" "}
+                {formatTime(call.createdAt)} · waiting{" "}
+                {formatWait(call.createdAt, call.resolvedAt)}
               </span>
               <strong>{call.playerName || "Player"}</strong>
+              <div className="judge-meta-row">
+                <span className={`judge-priority ${call.priority}`}>
+                  {PRIORITY_LABELS[call.priority]}
+                </span>
+                <span>{CATEGORY_LABELS[call.category]}</span>
+                <span>
+                  {call.assignedTo ? `Judge: ${call.assignedTo}` : "Unassigned"}
+                </span>
+              </div>
               {call.message && <p>{call.message}</p>}
+              {call.internalNote && (
+                <p className="judge-internal-note">{call.internalNote}</p>
+              )}
+              <div className="judge-control-grid">
+                <label>
+                  <span>Priority</span>
+                  <select
+                    value={call.priority}
+                    onChange={(event) =>
+                      patchCall(call, {
+                        priority: event.target.value as JudgeCallPriority,
+                      })
+                    }
+                  >
+                    {JUDGE_CALL_PRIORITIES.map((priority) => (
+                      <option key={priority} value={priority}>
+                        {PRIORITY_LABELS[priority]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Category</span>
+                  <select
+                    value={call.category}
+                    onChange={(event) =>
+                      patchCall(call, {
+                        category: event.target.value as JudgeCallCategory,
+                      })
+                    }
+                  >
+                    {JUDGE_CALL_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {CATEGORY_LABELS[category]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Assigned</span>
+                  <input
+                    defaultValue={call.assignedTo ?? ""}
+                    placeholder="Judge name"
+                    onBlur={(event) =>
+                      patchCall(call, { assignedTo: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Internal note</span>
+                  <input
+                    defaultValue={call.internalNote ?? ""}
+                    placeholder="Private TO note"
+                    onBlur={(event) =>
+                      patchCall(call, { internalNote: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
             </div>
             <div className="event-ops-row-actions">
               {call.status === "open" && (
-                <button type="button" onClick={() => setStatus(call, "acknowledged")}>
+                <button
+                  type="button"
+                  onClick={() => patchCall(call, { status: "acknowledged" })}
+                >
                   Ack
                 </button>
               )}
               {call.status !== "resolved" && (
-                <button type="button" onClick={() => setStatus(call, "resolved")}>
+                <button
+                  type="button"
+                  onClick={() => patchCall(call, { status: "resolved" })}
+                >
                   Resolve
+                </button>
+              )}
+              {call.status === "resolved" && (
+                <button
+                  type="button"
+                  onClick={() => patchCall(call, { status: "open" })}
+                >
+                  Reopen
                 </button>
               )}
             </div>

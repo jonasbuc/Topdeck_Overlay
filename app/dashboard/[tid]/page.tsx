@@ -88,6 +88,10 @@ export default function DashboardPage({ params }: Props) {
             <Link href={`/analytics/${tid}`} className="obs-link">
               Analytics
             </Link>
+
+            <Link href={`/producer/${tid}`} className="obs-link">
+              Producer
+            </Link>
           </div>
         </div>
 
@@ -138,6 +142,8 @@ export default function DashboardPage({ params }: Props) {
                 { name: "Results ticker (1920×64)", path: `/overlay/${tid}/ticker` },
                 { name: "Venue display (fullscreen)", path: `/venue/${tid}` },
                 { name: "Player companion page", path: `/event/${tid}` },
+                { name: "Producer mode", path: `/producer/${tid}` },
+                { name: "Event recap", path: `/recap/${tid}` },
               ].map((o) => (
                 <div key={o.path} className="overlay-link-row">
                   <span className="overlay-link-name">{o.name}</span>
