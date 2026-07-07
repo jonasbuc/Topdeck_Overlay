@@ -197,3 +197,100 @@ model TournamentFloorMap {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model PlayerRequest {
+  id String @id @default(cuid())
+
+  tid         String
+  type        String @default("help") // "lost_item" | "water" | "accessibility" | "drop" | "help"
+  playerName  String?
+  tableNumber String?
+  message     String?
+  status      String @default("open") // "open" | "acknowledged" | "resolved"
+  priority    String @default("normal") // "low" | "normal" | "high" | "urgent"
+  assignedTo  String?
+  internalNote String?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+
+  @@index([tid, status])
+  @@index([tid, type])
+  @@index([tid, priority])
+  @@index([tid, createdAt])
+}
+
+model StaffAssignment {
+  id String @id @default(cuid())
+
+  tid         String
+  staffName   String
+  role        String @default("floor_judge") // "head_judge" | "floor_judge" | "scorekeeper" | "coverage" | "runner" | "TO"
+  zone        String?
+  tableNumber String?
+  status      String @default("active") // "active" | "break" | "offline"
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tid, role])
+  @@index([tid, status])
+}
+
+model IncidentLog {
+  id String @id @default(cuid())
+
+  tid         String
+  playerName  String?
+  tableNumber String?
+  category    String @default("other") // "penalty" | "appeal" | "slow_play" | "deck_issue" | "conduct" | "other"
+  severity    String @default("note") // "note" | "warning" | "game_loss" | "match_loss" | "disqualification"
+  summary     String
+  ruling      String?
+  appealed    Boolean @default(false)
+  status      String  @default("open") // "open" | "closed"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tid, category])
+  @@index([tid, status])
+  @@index([tid, createdAt])
+}
+
+model BroadcastRunbookItem {
+  id String @id @default(cuid())
+
+  tid         String
+  segment     String @default("round") // "pre_round" | "round" | "break" | "top_cut" | "finals" | "sponsor" | "custom"
+  title       String
+  body        String?
+  status      String @default("queued") // "queued" | "live" | "done"
+  featureTable String?
+  lowerThird   String?
+  sponsorLine  String?
+  sortOrder    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tid, status])
+  @@index([tid, sortOrder])
+}
+
+model ClipMarker {
+  id String @id @default(cuid())
+
+  tid         String
+  label       String
+  note        String?
+  roundLabel  String?
+  tableNumber String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tid, createdAt])
+}

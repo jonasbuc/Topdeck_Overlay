@@ -18,6 +18,9 @@ export const CMD = {
   PAIRINGS: "pairings",
   PARKING: "parking",
   EVENT: "event",
+  PLAYER: "player",
+  ANNOUNCE: "announce",
+  STAFF: "staff",
   SETTINGS: "settings",
   SETUP: "setup",
   TEST: "test",
@@ -78,6 +81,45 @@ export const COMMAND_DEFINITIONS = [
             .setDescription("TopDeck tournament ID (defaults to linked channel)")
             .setRequired(false)
         )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName(CMD.PLAYER)
+        .setDescription("Look up a player's table, standing and record")
+        .addStringOption((opt) =>
+          opt
+            .setName("name")
+            .setDescription("Player name")
+            .setRequired(true)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName(CMD.ANNOUNCE)
+        .setDescription("Post a templated event announcement")
+        .addStringOption((opt) =>
+          opt
+            .setName("template")
+            .setDescription("Announcement template")
+            .setRequired(true)
+            .addChoices(
+              { name: "Round start", value: "round-start" },
+              { name: "Lunch", value: "lunch" },
+              { name: "Top cut", value: "topcut" },
+              { name: "Custom", value: "custom" }
+            )
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("message")
+            .setDescription("Optional custom message")
+            .setRequired(false)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName(CMD.STAFF)
+        .setDescription("Show staff-only quick links for this event")
     )
     .addSubcommand((sub) =>
       sub

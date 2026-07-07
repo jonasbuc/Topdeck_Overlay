@@ -65,6 +65,14 @@ interface OpsHealth {
       | { status: "no_coordinates"; cacheKey: null };
   };
   eventOps: {
+    round: {
+      tableCount: number;
+      completed: number;
+      active: number;
+      pending: number;
+      byes: number;
+      completionRate: number | null;
+    };
     announcements: {
       total: number;
       pinned: number;
@@ -87,9 +95,32 @@ interface OpsHealth {
       urgent: number;
       oldestOpenAt: string | null;
     };
+    playerRequests: {
+      open: number;
+      unresolved: number;
+      urgent: number;
+      oldestOpenAt: string | null;
+    };
+    staff: {
+      total: number;
+      active: number;
+      onBreak: number;
+      offline: number;
+    };
+    incidents: {
+      total: number;
+      open: number;
+    };
+    broadcast: {
+      runbookItems: number;
+      liveItems: number;
+      queuedItems: number;
+      clipMarkers: number;
+    };
   };
   links: {
     player: string;
+    to: string;
     dashboard: string;
     overlays: string;
     venue: string;
@@ -169,6 +200,7 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
   const floorMapOk = health?.eventOps.floorMap.configured === true;
   const announcementOk = (health?.eventOps.announcements.pinned ?? 0) > 0;
   const queueOk = (health?.eventOps.judgeQueue.urgent ?? 0) === 0;
+  const helpDeskOk = (health?.eventOps.playerRequests.urgent ?? 0) === 0;
   const channelUrl = health ? discordUrl(health.discord.link) : null;
   const readiness = health
     ? [
@@ -211,11 +243,12 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
         },
         {
           label: "Judge queue",
-          ok: queueOk,
+          ok: queueOk && helpDeskOk,
           detail:
-            health.eventOps.judgeQueue.unresolved === 0
-              ? "No active calls"
-              : `${health.eventOps.judgeQueue.unresolved} active / ${health.eventOps.judgeQueue.urgent} urgent`,
+            health.eventOps.judgeQueue.unresolved === 0 &&
+            health.eventOps.playerRequests.unresolved === 0
+              ? "No active calls or requests"
+              : `${health.eventOps.judgeQueue.unresolved} judge / ${health.eventOps.playerRequests.unresolved} help`,
         },
         {
           label: "Parking",
@@ -225,6 +258,70 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
       ]
     : [];
   const blockedCount = readiness.filter((item) => !item.ok).length;
+  const roundCompletionPct =
+    health?.eventOps.round.completionRate != null
+      ? Math.round(health.eventOps.round.completionRate * 100)
+      : null;
+  const launchChecklist = health
+    ? [
+        {
+          label: "Pairings live",
+          ok: health.eventOps.round.tableCount > 0,
+          detail:
+            health.eventOps.round.tableCount > 0
+              ? `${health.eventOps.round.tableCount} tables`
+              : "Waiting for round publish",
+        },
+        {
+          label: "Clock started",
+          ok: health.state.exists && health.state.roundStatus === "active",
+          detail: health.state.exists ? health.state.roundStatus : "No state",
+        },
+        {
+          label: "Discord linked",
+          ok: health.discord.link != null,
+          detail: health.discord.link ? "Event hub ready" : "Run setup command",
+        },
+        {
+          label: "Venue ready",
+          ok: health.eventOps.floorMap.configured,
+          detail: health.eventOps.floorMap.configured
+            ? `${health.eventOps.floorMap.zoneCount} mapped zones`
+            : "Missing floor map",
+        },
+        {
+          label: "Announcement ready",
+          ok: health.eventOps.announcements.pinned > 0,
+          detail:
+            health.eventOps.announcements.latest?.title ??
+            "Post a pinned player update",
+        },
+        {
+          label: "Judge queue calm",
+          ok:
+            health.eventOps.judgeQueue.urgent === 0 &&
+            health.eventOps.playerRequests.urgent === 0,
+          detail:
+            `${health.eventOps.judgeQueue.unresolved} judge / ${health.eventOps.playerRequests.unresolved} help`,
+        },
+        {
+          label: "Staff assigned",
+          ok: health.eventOps.staff.active > 0,
+          detail:
+            health.eventOps.staff.active > 0
+              ? `${health.eventOps.staff.active} active staff`
+              : "Assign floor staff",
+        },
+        {
+          label: "Broadcast runbook",
+          ok: health.eventOps.broadcast.runbookItems > 0,
+          detail:
+            health.eventOps.broadcast.runbookItems > 0
+              ? `${health.eventOps.broadcast.runbookItems} cues`
+              : "Add first stream cue",
+        },
+      ]
+    : [];
 
   return (
     <details className="card ops-panel" open>
@@ -259,6 +356,59 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
 
       {health && (
         <>
+          <div className="ops-command-center">
+            <div className="ops-command-hero">
+              <span className="ops-tile-label">TO command center</span>
+              <strong>
+                {health.state.exists
+                  ? `${health.state.roundLabel || "Current round"} · ${health.state.roundStatus}`
+                  : "Waiting for tournament data"}
+              </strong>
+              <small>
+                {roundCompletionPct == null
+                  ? "No pairings published yet"
+                  : `${roundCompletionPct}% complete · ${health.eventOps.round.active} active · ${health.eventOps.round.pending} pending`}
+              </small>
+            </div>
+            <div className="ops-command-stats">
+              <div>
+                <span>Tables</span>
+                <strong>{health.eventOps.round.tableCount}</strong>
+                <small>{health.eventOps.round.completed} done</small>
+              </div>
+              <div>
+                <span>Judge</span>
+                <strong>{health.eventOps.judgeQueue.unresolved}</strong>
+                <small>{health.eventOps.judgeQueue.urgent} urgent</small>
+              </div>
+              <div>
+                <span>Comms</span>
+                <strong>{health.eventOps.announcements.pinned}</strong>
+                <small>pinned updates</small>
+              </div>
+              <div>
+                <span>Venue</span>
+                <strong>{health.eventOps.floorMap.zoneCount}</strong>
+                <small>zones</small>
+              </div>
+              <div>
+                <span>Help</span>
+                <strong>{health.eventOps.playerRequests.unresolved}</strong>
+                <small>{health.eventOps.playerRequests.urgent} urgent</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="ops-launch-list">
+            {launchChecklist.map((item) => (
+              <div key={item.label} className={`ops-launch-item ${item.ok ? "ok" : "warn"}`}>
+                <span>{item.ok ? "Ready" : "Action"}</span>
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </div>
+            ))}
+          </div>
+
           <div className="ops-checklist">
             {readiness.map((item) => (
               <div key={item.label} className={`ops-check-row ${item.ok ? "ok" : "warn"}`}>
@@ -322,6 +472,32 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
             </div>
 
             <div className="ops-tile">
+              <span className="ops-tile-label">Help Desk</span>
+              <strong>{health.eventOps.playerRequests.unresolved}</strong>
+              <span>{health.eventOps.playerRequests.open} open player requests</span>
+              <small>
+                {health.eventOps.playerRequests.urgent} urgent · oldest{" "}
+                {formatTime(health.eventOps.playerRequests.oldestOpenAt)}
+              </small>
+            </div>
+
+            <div className="ops-tile">
+              <span className="ops-tile-label">Staff</span>
+              <strong>{health.eventOps.staff.active} active</strong>
+              <span>{health.eventOps.staff.total} assigned</span>
+              <small>
+                {health.eventOps.staff.onBreak} break · {health.eventOps.staff.offline} offline
+              </small>
+            </div>
+
+            <div className="ops-tile">
+              <span className="ops-tile-label">Broadcast</span>
+              <strong>{health.eventOps.broadcast.runbookItems} cues</strong>
+              <span>{health.eventOps.broadcast.liveItems} live segment</span>
+              <small>{health.eventOps.broadcast.clipMarkers} clip markers</small>
+            </div>
+
+            <div className="ops-tile">
               <span className="ops-tile-label">Event Ops</span>
               <strong>{health.eventOps.floorMap.zoneCount} zones</strong>
               <span>{health.eventOps.announcements.pinned} pinned announcements</span>
@@ -344,6 +520,7 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
 
           <div className="ops-links">
             <Link href={health.links.player} target="_blank">Player page</Link>
+            <Link href={health.links.to}>TO center</Link>
             <Link href={health.links.judge}>Judge console</Link>
             <Link href={health.links.overlays} target="_blank">Overlays</Link>
             <Link href={health.links.venue} target="_blank">Venue display</Link>

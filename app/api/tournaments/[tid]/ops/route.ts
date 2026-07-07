@@ -77,8 +77,19 @@ export async function GET(
       getLinkByTid(tid),
     ]);
 
-  const [announcementCount, pinnedAnnouncementCount, latestAnnouncement, floorMap, judgeCalls] =
-    await Promise.all([
+  const [
+    announcementCount,
+    pinnedAnnouncementCount,
+    latestAnnouncement,
+    floorMap,
+    judgeCalls,
+    playerRequests,
+    staffAssignments,
+    incidentCount,
+    openIncidentCount,
+    broadcastItems,
+    clipCount,
+  ] = await Promise.all([
       prisma.tournamentAnnouncement.count({ where: { tid } }),
       prisma.tournamentAnnouncement.count({ where: { tid, pinned: true } }),
       prisma.tournamentAnnouncement.findFirst({
@@ -99,6 +110,41 @@ export async function GET(
           resolvedAt: true,
         },
       }),
+      prisma.playerRequest.findMany({
+        where: { tid },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          status: true,
+          priority: true,
+          type: true,
+          createdAt: true,
+        },
+      }),
+      prisma.staffAssignment.findMany({
+        where: { tid },
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          role: true,
+          status: true,
+        },
+      }),
+      prisma.incidentLog.count({ where: { tid } }),
+      prisma.incidentLog.count({ where: { tid, status: "open" } }),
+      prisma.broadcastRunbookItem.findMany({
+        where: { tid },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 100,
+        select: {
+          id: true,
+          status: true,
+          segment: true,
+        },
+      }),
+      prisma.clipMarker.count({ where: { tid } }),
     ]);
 
   const openJudgeCalls = judgeCalls.filter((call) => call.status === "open");
@@ -111,6 +157,27 @@ export async function GET(
   const urgentJudgeCalls = unresolvedJudgeCalls.filter(
     (call) => call.priority === "urgent"
   );
+  const openPlayerRequests = playerRequests.filter(
+    (request) => request.status === "open"
+  );
+  const unresolvedPlayerRequests = playerRequests.filter(
+    (request) => request.status !== "resolved"
+  );
+  const urgentPlayerRequests = unresolvedPlayerRequests.filter(
+    (request) => request.priority === "urgent"
+  );
+  const activeStaffAssignments = staffAssignments.filter(
+    (assignment) => assignment.status === "active"
+  );
+  const liveBroadcastItems = broadcastItems.filter((item) => item.status === "live");
+  const queuedBroadcastItems = broadcastItems.filter(
+    (item) => item.status === "queued"
+  );
+  const tables = state?.tables ?? [];
+  const completedTables = tables.filter((table) => table.status === "Completed").length;
+  const activeTables = tables.filter((table) => table.status === "Active").length;
+  const pendingTables = tables.filter((table) => table.status === "Pending").length;
+  const byeTables = tables.filter((table) => table.status === "Bye").length;
 
   let floorZoneCount = 0;
   if (floorMap) {
@@ -194,6 +261,15 @@ export async function GET(
         cache: parkingCache,
       },
       eventOps: {
+        round: {
+          tableCount: tables.length,
+          completed: completedTables,
+          active: activeTables,
+          pending: pendingTables,
+          byes: byeTables,
+          completionRate:
+            tables.length > 0 ? completedTables / Math.max(1, tables.length - byeTables) : null,
+        },
         announcements: {
           total: announcementCount,
           pinned: pinnedAnnouncementCount,
@@ -224,9 +300,40 @@ export async function GET(
                   .createdAt.toISOString()
               : null,
         },
+        playerRequests: {
+          open: openPlayerRequests.length,
+          unresolved: unresolvedPlayerRequests.length,
+          urgent: urgentPlayerRequests.length,
+          oldestOpenAt:
+            openPlayerRequests.length > 0
+              ? openPlayerRequests
+                  .slice()
+                  .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0]
+                  .createdAt.toISOString()
+              : null,
+        },
+        staff: {
+          total: staffAssignments.length,
+          active: activeStaffAssignments.length,
+          onBreak: staffAssignments.filter((assignment) => assignment.status === "break")
+            .length,
+          offline: staffAssignments.filter((assignment) => assignment.status === "offline")
+            .length,
+        },
+        incidents: {
+          total: incidentCount,
+          open: openIncidentCount,
+        },
+        broadcast: {
+          runbookItems: broadcastItems.length,
+          liveItems: liveBroadcastItems.length,
+          queuedItems: queuedBroadcastItems.length,
+          clipMarkers: clipCount,
+        },
       },
       links: {
         player: `/event/${tid}`,
+        to: `/to/${tid}`,
         dashboard: `/dashboard/${tid}`,
         overlays: `/overlay/${tid}`,
         venue: `/venue/${tid}`,

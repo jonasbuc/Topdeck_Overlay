@@ -415,6 +415,89 @@ function ParkingCard({
   );
 }
 
+function positionElement(
+  node: HTMLElement | null,
+  leftPct: number,
+  topPct: number,
+  widthPct?: number,
+  heightPct?: number
+) {
+  if (!node) return;
+  node.style.left = `${leftPct}%`;
+  node.style.top = `${topPct}%`;
+  if (widthPct != null) node.style.width = `${widthPct}%`;
+  if (heightPct != null) node.style.height = `${heightPct}%`;
+}
+
+function ParkingMapTile({ tile }: { tile: TileSpec }) {
+  const ref = useCallback(
+    (node: HTMLImageElement | null) =>
+      positionElement(
+        node,
+        tile.leftPct,
+        tile.topPct,
+        tile.widthPct,
+        tile.heightPct
+      ),
+    [tile.heightPct, tile.leftPct, tile.topPct, tile.widthPct]
+  );
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={ref}
+      src={tile.url}
+      alt=""
+      className="parking-map-tile"
+      draggable={false}
+    />
+  );
+}
+
+function ParkingMapMarker({
+  marker,
+  selected,
+  onSelectParking,
+}: {
+  marker: MarkerSpec;
+  selected: boolean;
+  onSelectParking: (id: string) => void;
+}) {
+  const ref = useCallback(
+    (node: HTMLElement | null) =>
+      positionElement(node, marker.leftPct, marker.topPct),
+    [marker.leftPct, marker.topPct]
+  );
+
+  if (marker.type === "parking" && marker.result) {
+    return (
+      <button
+        ref={ref as (node: HTMLButtonElement | null) => void}
+        type="button"
+        className={`parking-map-marker parking-map-marker-parking${
+          selected ? " selected" : ""
+        }`}
+        onClick={() => onSelectParking(marker.result!.id)}
+        aria-label={`${marker.result.name || "Parking"} ${formatDistance(
+          marker.result.distanceMeters
+        )} from venue`}
+      >
+        {marker.label}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      ref={ref as (node: HTMLDivElement | null) => void}
+      className={`parking-map-marker parking-map-marker-${marker.type}`}
+      aria-label={marker.label}
+    >
+      {marker.label}
+    </div>
+  );
+}
+
 function ParkingMap({
   tid,
   response,
@@ -573,59 +656,21 @@ function ParkingMap({
         </div>
       </div>
 
-      <div className="parking-map-canvas" role="img" aria-label="Parking map">
+      <div className="parking-map-canvas" role="group" aria-label="Parking map">
         {model.tiles.map((tile) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={tile.key}
-            src={tile.url}
-            alt=""
-            className="parking-map-tile"
-            draggable={false}
-            style={{
-              left: `${tile.leftPct}%`,
-              top: `${tile.topPct}%`,
-              width: `${tile.widthPct}%`,
-              height: `${tile.heightPct}%`,
-            }}
-          />
+          <ParkingMapTile key={tile.key} tile={tile} />
         ))}
 
         <div className="parking-map-shade" />
 
-        {model.markers.map((marker) => {
-          const markerStyle = {
-            left: `${marker.leftPct}%`,
-            top: `${marker.topPct}%`,
-          };
-
-          if (marker.type === "parking" && marker.result) {
-            const selected = marker.result.id === selectedParkingId;
-            return (
-              <button
-                key={marker.id}
-                type="button"
-                className={`parking-map-marker parking-map-marker-parking${selected ? " selected" : ""}`}
-                style={markerStyle}
-                onClick={() => onSelectParking(marker.result!.id)}
-                aria-label={`${marker.result.name || "Parking"} ${formatDistance(marker.result.distanceMeters)} from venue`}
-              >
-                {marker.label}
-              </button>
-            );
-          }
-
-          return (
-            <div
-              key={marker.id}
-              className={`parking-map-marker parking-map-marker-${marker.type}`}
-              style={markerStyle}
-              aria-label={marker.label}
-            >
-              {marker.label}
-            </div>
-          );
-        })}
+        {model.markers.map((marker) => (
+          <ParkingMapMarker
+            key={marker.id}
+            marker={marker}
+            selected={marker.result?.id === selectedParkingId}
+            onSelectParking={onSelectParking}
+          />
+        ))}
       </div>
 
       <div className="parking-map-legend">

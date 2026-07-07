@@ -15,6 +15,7 @@ import {
   JUDGE_CALL_CATEGORIES,
   JUDGE_CALL_PRIORITIES,
 } from "@/lib/event-ops/types";
+import { EventOpsAdvancedSuite } from "@/components/EventOpsAdvanced";
 
 interface Props {
   tid: string;
@@ -94,6 +95,7 @@ export function EventOperationsPanel({ tid }: Props) {
       <ShareQrPanel tid={tid} />
       <JudgeQueuePanel tid={tid} />
       <FloorMapEditor tid={tid} />
+      <EventOpsAdvancedSuite tid={tid} />
     </div>
   );
 }

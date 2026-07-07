@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   serializeAnnouncement,
+  serializeBroadcastRunbookItem,
+  serializeClipMarker,
   serializeFloorMap,
+  serializeIncidentLog,
   serializeJudgeCall,
+  serializePlayerRequest,
+  serializeStaffAssignment,
 } from "@/lib/event-ops/serializers";
-import { normalizeFloorMapZones } from "@/lib/event-ops/types";
+import {
+  normalizeBroadcastRunbookStatus,
+  normalizeFloorMapZones,
+  normalizeIncidentSeverity,
+  normalizePlayerRequestType,
+} from "@/lib/event-ops/types";
 
 const now = new Date("2026-07-07T00:00:00.000Z");
 
@@ -103,5 +113,91 @@ describe("event operations serializers", () => {
     expect(dto.zones).toHaveLength(1);
     expect(dto.zones[0].id).toBe("zone-1");
     expect(dto.notes).toBe("Judge station by the entrance");
+  });
+
+  it("normalizes new player request values", () => {
+    const dto = serializePlayerRequest({
+      id: "request_1",
+      tid: "tid_1",
+      type: "snacks",
+      playerName: "Player One",
+      tableNumber: "4",
+      message: "Need water",
+      status: "waiting",
+      priority: "panic",
+      assignedTo: null,
+      internalNote: null,
+      createdAt: now,
+      updatedAt: now,
+      acknowledgedAt: null,
+      resolvedAt: null,
+    });
+
+    expect(dto.type).toBe("help");
+    expect(dto.status).toBe("open");
+    expect(dto.priority).toBe("normal");
+    expect(normalizePlayerRequestType("water")).toBe("water");
+  });
+
+  it("serializes staff assignments, incidents and broadcast cues", () => {
+    const staff = serializeStaffAssignment({
+      id: "staff_1",
+      tid: "tid_1",
+      staffName: "Judge A",
+      role: "mystery",
+      zone: "Blue",
+      tableNumber: null,
+      status: "lunch",
+      note: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const incident = serializeIncidentLog({
+      id: "incident_1",
+      tid: "tid_1",
+      playerName: null,
+      tableNumber: "8",
+      category: "slow_play",
+      severity: "major",
+      summary: "Pace note",
+      ruling: null,
+      appealed: false,
+      status: "open",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const cue = serializeBroadcastRunbookItem({
+      id: "cue_1",
+      tid: "tid_1",
+      segment: "intro",
+      title: "Feature match",
+      body: null,
+      status: "ready",
+      featureTable: "1",
+      lowerThird: null,
+      sponsorLine: null,
+      sortOrder: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const clip = serializeClipMarker({
+      id: "clip_1",
+      tid: "tid_1",
+      label: "Final turn",
+      note: null,
+      roundLabel: "Round 4",
+      tableNumber: "1",
+      createdAt: now,
+    });
+
+    expect(staff.role).toBe("floor_judge");
+    expect(staff.status).toBe("active");
+    expect(incident.category).toBe("slow_play");
+    expect(incident.severity).toBe("note");
+    expect(cue.segment).toBe("round");
+    expect(cue.status).toBe("queued");
+    expect(clip.roundLabel).toBe("Round 4");
+    expect(normalizeIncidentSeverity("warning")).toBe("warning");
+    expect(normalizeBroadcastRunbookStatus("live")).toBe("live");
   });
 });

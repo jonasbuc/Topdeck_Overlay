@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useTournamentLive } from "@/hooks/useTournamentLive";
-import { VenueDisplay } from "@/components/overlays/VenueDisplay";
+import { VenueDisplay, VenueKioskMode } from "@/components/overlays/VenueDisplay";
 
 interface Props {
   params: { tid: string };
@@ -33,6 +33,18 @@ export default function VenuePage({ params }: Props) {
     3000,
     parseInt(searchParams.get("duration") ?? "12000", 10) || 12000
   );
+  const accessibility = searchParams.get("accessibility") === "true";
 
-  return <VenueDisplay tid={tid} state={state} sceneDurationMs={sceneDurationMs} />;
+  if (searchParams.get("mode") === "kiosk") {
+    return <VenueKioskMode tid={tid} state={state} accessibility={accessibility} />;
+  }
+
+  return (
+    <VenueDisplay
+      tid={tid}
+      state={state}
+      sceneDurationMs={sceneDurationMs}
+      accessibility={accessibility}
+    />
+  );
 }

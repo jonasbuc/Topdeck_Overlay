@@ -13,15 +13,17 @@ Receives signed [TopDeck.gg](https://topdeck.gg) webhooks and turns them into li
 - **Derived tournament state** maintained per `tid` in SQLite via Prisma
 - **Server-Sent Events** — real-time browser updates without a WebSocket server
 - **Live dashboard** at `/dashboard/[tid]` — round clock, pairings, results feed, standings, roster, round history browser
-- **Player companion page** at `/event/[tid]` — mobile-first live round view, player finder, pairings, standings, venue, and parking
+- **Player companion page** at `/event/[tid]` — mobile-first command center with live round view, player finder, table/opponent helper, result slip helper, commander lookup, help desk, reminders, accessibility view, pairings, standings, venue, and parking
 - **Player PWA** — installable player companion with service-worker offline fallback
-- **Event-day Control Center** — readiness checklist for webhook health, TopDeck sync, Discord setup, announcements, judge queue, floor map, parking, and public links
-- **Event-day operations** — announcements, QR sharing, Judge Queue V2, and table/floor map for players and venue displays
+- **Event-day Control Center** — TO command center with round launch checklist, pace monitor, webhook health, TopDeck sync, Discord setup, announcements, judge queue, help desk, staff roles, incident log, broadcast runbook, emergency tools, floor map, parking, and public links
+- **TO command center** at `/to/[tid]` — dedicated staff cockpit for event ops, Discord setup, floor tools, queues, incidents and emergency announcements
+- **Event-day operations** — announcements, QR sharing, Judge Queue V2, help desk, staff assignments, incident log, broadcast cues, and table/floor map for players and venue displays
 - **Judge console** at `/judge/[tid]` — dedicated judge workspace with live calls, card lookup, official rulings, legalities, and rules references
-- **Producer mode** at `/producer/[tid]` — stream control surface with overlay preview, source links, feature-table controls, and venue announcements
+- **Producer mode** at `/producer/[tid]` — stream control surface with overlay preview, source links, scene suggestions, lower-third builder, feature-table controls, runbook, clip markers, script panel, and venue announcements
+- **Commentator view** at `/commentator/[tid]` — read-only stream desk with feature table, standings, recent results and card lookup
 - **Event recap** at `/recap/[tid]` — public post-event summary with champion, standings, and round history
 - **OBS browser-source overlays** — transparent background, 1920×1080 optimized
-- **Post-tournament analytics** at `/analytics/[tid]` — podium, win rates, round-by-round performance matrix
+- **Tournament analytics** at `/analytics/[tid]` — live cut watch, bubble predictor, metagame view, player journey, pace monitor, podium, win rates, round-by-round performance matrix and post-event report helper
 - **Round history viewer** — browse pairings and standings from every completed round
 - **Winner screen** — full-screen champion celebration with link to analytics
 - **Overtime clock** — counts up as `+MM:SS` once regulation time expires
@@ -44,7 +46,8 @@ All overlays are transparent-background browser sources designed for OBS at 1920
 | `/overlay/[tid]/standings` | Live standings leaderboard |
 | `/overlay/[tid]/ticker` | Scrolling ticker with current round results |
 | `/overlay/[tid]/winner` | Full-screen winner celebration (auto-shows on `tournament.finished`) |
-| `/venue/[tid]` | Venue projector rotation with clock, pairings, standings, floor map, and announcements |
+| `/venue/[tid]` | Venue projector rotation with clock, pairings, standings, heatmap, schedule, floor map, and announcements |
+| `/venue/[tid]?mode=kiosk` | Touch-friendly kiosk with player/table search, heatmap, schedule and accessibility option |
 
 Producer control is available at `/producer/[tid]` and links directly to each OBS source.
 
@@ -66,6 +69,8 @@ topdeck-live/
 │   ├── event/[tid]/page.tsx                ← Public mobile player companion page
 │   ├── judge/[tid]/page.tsx                ← Judge console for live calls + card/rules lookup
 │   ├── producer/[tid]/page.tsx             ← Stream producer control panel
+│   ├── commentator/[tid]/page.tsx          ← Read-only caster desk
+│   ├── to/[tid]/page.tsx                   ← Dedicated TO command center
 │   ├── recap/[tid]/page.tsx                ← Public event recap
 │   ├── manifest.ts                         ← PWA manifest
 │   ├── overlay/[tid]/                      ← OBS overlay pages
@@ -82,6 +87,7 @@ topdeck-live/
 │   ├── RoundHistoryViewer.tsx
 │   ├── EventCompanion.tsx                  ← Public player-facing event UI
 │   ├── EventOperationsPanel.tsx            ← Announcements, QR, judge queue, floor map admin
+│   ├── EventOpsAdvanced.tsx                ← Help desk, staff, incidents, broadcast, emergency tools
 │   ├── EventOpsPublic.tsx                  ← Public announcements, judge call, floor map widgets
 │   ├── JudgeConsole.tsx                    ← Dedicated judge workspace
 │   ├── ProducerMode.tsx                    ← Stream producer controls + overlay preview
@@ -183,10 +189,18 @@ The dashboard includes organizer tools that make the overlay useful beyond strea
 |---|---|
 | Announcements | Dashboard composer; player page banner; venue display overlay; optional Discord post |
 | QR / share | Dashboard QR code and share/copy actions for `/event/[tid]` |
+| Player command center | `/event/[tid]` next action, current table, opponent, result helper, standings, judge status, quick links |
+| TO command center | Dashboard round launch checklist, round pace, event signal cards, health checks |
 | Judge Queue V2 | Player page request form with categories; dashboard triage queue with priority, assignee, internal notes, status history |
 | Judge console | `/judge/[tid]` live call queue, Scryfall card lookup, oracle/rulings, Commander legality, and official rules/policy links |
+| Cut watch | `/analytics/[tid]` projected top cut and bubble players based on live standings |
+| Help desk | `/event/[tid]` player requests for lost items, water, accessibility help, drops and general TO support |
+| Staff roles | `/to/[tid]` assign judges/staff to zones, scorekeeping, coverage, breaks and runner duties |
+| Incident log | `/to/[tid]` private event log for penalties, appeals, slow play, deck issues and rulings |
+| Broadcast runbook | `/producer/[tid]` and `/to/[tid]` stream cues, lower-thirds, sponsor lines and clip markers |
+| Venue kiosk | `/venue/[tid]?mode=kiosk` touch-friendly player/table finder with zone heatmap and schedule |
 | Table / floor map | Dashboard editor; player page highlighted "find my table" zone; venue display rotation |
-| Event hub | Discord `/topdeck event` command posts player links for the whole event |
+| Event hub | Discord `/topdeck event`, `/topdeck player`, `/topdeck announce`, and `/topdeck staff` commands support the event workflow |
 | Producer mode | `/producer/[tid]` preview/control panel for stream operators |
 | Event recap | `/recap/[tid]` shareable post-event summary |
 
@@ -195,8 +209,13 @@ Data is stored locally in Prisma:
 - `TournamentAnnouncement`
 - `JudgeCall`
 - `TournamentFloorMap`
+- `PlayerRequest`
+- `StaffAssignment`
+- `IncidentLog`
+- `BroadcastRunbookItem`
+- `ClipMarker`
 
-Discord setup also supports `/topdeck setup [tid]`, which links a channel when a tournament ID is provided and returns quick buttons for the player page, dashboard, and venue display.
+Discord setup also supports `/topdeck setup [tid]`, which links a channel when a tournament ID is provided and returns quick buttons for the player page, dashboard, and venue display. Staff workflows also have `/topdeck player`, `/topdeck announce`, and `/topdeck staff`.
 
 ### Admin protection
 

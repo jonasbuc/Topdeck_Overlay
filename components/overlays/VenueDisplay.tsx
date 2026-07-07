@@ -18,7 +18,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RoundClock } from "@/components/RoundClock";
 import { resolveFeatureTable } from "@/components/overlays/FeatureMatch";
 import type { LiveTournamentState } from "@/lib/topdeck/types";
@@ -27,13 +27,29 @@ import type {
   TournamentFloorMapDTO,
 } from "@/lib/event-ops/types";
 
-type SceneId = "clock" | "pairings" | "standings" | "floor" | "feature";
-const BASE_SCENES: SceneId[] = ["clock", "pairings", "standings", "floor", "feature"];
+type SceneId =
+  | "clock"
+  | "pairings"
+  | "standings"
+  | "heatmap"
+  | "schedule"
+  | "floor"
+  | "feature";
+const BASE_SCENES: SceneId[] = [
+  "clock",
+  "pairings",
+  "standings",
+  "heatmap",
+  "schedule",
+  "floor",
+  "feature",
+];
 
 interface Props {
   tid: string;
   state: LiveTournamentState | null;
   sceneDurationMs?: number;
+  accessibility?: boolean;
 }
 
 interface AnnouncementResponse {
@@ -186,6 +202,74 @@ function FloorScene({ floorMap }: { floorMap: TournamentFloorMapDTO | null }) {
   );
 }
 
+function HeatmapScene({
+  state,
+  floorMap,
+}: {
+  state: LiveTournamentState | null;
+  floorMap: TournamentFloorMapDTO | null;
+}) {
+  const zones = floorMap?.zones ?? [];
+  const tables = state?.tables ?? [];
+  const rows = zones.map((zone) => {
+    const zoneTables = tables.filter(
+      (table) =>
+        typeof table.table === "number" &&
+        table.table >= zone.tableStart &&
+        table.table <= zone.tableEnd
+    );
+    const active = zoneTables.filter((table) => table.status === "Active").length;
+    const done = zoneTables.filter((table) => table.status === "Completed").length;
+    const pending = zoneTables.filter((table) => table.status === "Pending").length;
+    return { zone, active, done, pending, total: zoneTables.length };
+  });
+
+  return (
+    <>
+      <p className="venue-scene-title">Table Zone Heatmap</p>
+      {rows.length === 0 ? (
+        <p className="venue-empty">Floor map not configured…</p>
+      ) : (
+        <div className="venue-heatmap-grid">
+          {rows.map((row) => (
+            <div key={row.zone.id} className={row.active > 0 ? "active" : "quiet"}>
+              <span>Tables {row.zone.tableStart}-{row.zone.tableEnd}</span>
+              <strong>{row.zone.label}</strong>
+              <p>{row.active} active · {row.done} done · {row.pending} pending</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ScheduleScene({ state }: { state: LiveTournamentState | null }) {
+  const start = state?.startDate ? new Date(state.startDate) : null;
+  const items = [
+    { label: "Check-in", detail: start ? start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Before event" },
+    { label: "Player meeting", detail: "Before Round 1" },
+    { label: "Current round", detail: state?.roundLabel || "Waiting" },
+    { label: "Lunch / break", detail: "TO announcement" },
+    { label: "Top cut", detail: "After Swiss" },
+    { label: "Finals", detail: "End of event" },
+  ];
+
+  return (
+    <>
+      <p className="venue-scene-title">Schedule Timeline</p>
+      <div className="venue-schedule-timeline">
+        {items.map((item) => (
+          <div key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.detail}</strong>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function VenueAnnouncementOverlay({
   announcement,
 }: {
@@ -204,7 +288,12 @@ function VenueAnnouncementOverlay({
 
 // ─── Main component ────────────────────────────────────────────────────────
 
-export function VenueDisplay({ tid, state, sceneDurationMs = 12_000 }: Props) {
+export function VenueDisplay({
+  tid,
+  state,
+  sceneDurationMs = 12_000,
+  accessibility = false,
+}: Props) {
   const [sceneIdx, setSceneIdx] = useState(0);
   const [announcements, setAnnouncements] = useState<TournamentAnnouncementDTO[]>([]);
   const [floorMap, setFloorMap] = useState<TournamentFloorMapDTO | null>(null);
@@ -253,7 +342,7 @@ export function VenueDisplay({ tid, state, sceneDurationMs = 12_000 }: Props) {
   const currentScene = scenes[sceneIdx % scenes.length] ?? "clock";
 
   return (
-    <div className="venue-root">
+    <div className={`venue-root${accessibility ? " accessibility-view" : ""}`}>
       {/* Fixed header */}
       {state && (
         <div className="venue-header">
@@ -276,6 +365,14 @@ export function VenueDisplay({ tid, state, sceneDurationMs = 12_000 }: Props) {
 
       <div className={`venue-scene ${currentScene === "standings" ? "active" : "inactive"}`}>
         <StandingsScene state={state} />
+      </div>
+
+      <div className={`venue-scene ${currentScene === "heatmap" ? "active" : "inactive"}`}>
+        <HeatmapScene state={state} floorMap={floorMap} />
+      </div>
+
+      <div className={`venue-scene ${currentScene === "schedule" ? "active" : "inactive"}`}>
+        <ScheduleScene state={state} />
       </div>
 
       {hasFloorMap && (
@@ -301,6 +398,90 @@ export function VenueDisplay({ tid, state, sceneDurationMs = 12_000 }: Props) {
       </div>
 
       <VenueAnnouncementOverlay announcement={announcements[0] ?? null} />
+    </div>
+  );
+}
+
+export function VenueKioskMode({
+  tid,
+  state,
+  accessibility = false,
+}: {
+  tid: string;
+  state: LiveTournamentState | null;
+  accessibility?: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [floorMap, setFloorMap] = useState<TournamentFloorMapDTO | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/tournaments/${tid}/floor-map`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: FloorMapResponse | null) => setFloorMap(data?.floorMap ?? null))
+      .catch(() => setFloorMap(null));
+  }, [tid]);
+
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!state || !needle) return [];
+    return state.tables
+      .flatMap((table) =>
+        table.players.map((player) => ({
+          player,
+          table,
+          zone: floorMap?.zones.find(
+            (zone) =>
+              typeof table.table === "number" &&
+              table.table >= zone.tableStart &&
+              table.table <= zone.tableEnd
+          ),
+        }))
+      )
+      .filter((entry) => entry.player.name.toLowerCase().includes(needle))
+      .slice(0, 10);
+  }, [floorMap?.zones, query, state]);
+
+  return (
+    <div className={`venue-kiosk-root${accessibility ? " accessibility-view" : ""}`}>
+      <header className="venue-kiosk-header">
+        <div>
+          <span>Venue Kiosk</span>
+          <h1>{state?.name || `Tournament ${tid}`}</h1>
+        </div>
+        <strong>{state?.roundLabel || "Waiting"}</strong>
+      </header>
+
+      <main className="venue-kiosk-grid">
+        <section className="venue-kiosk-search">
+          <h2>Find Player / Table</h2>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search player name"
+            autoFocus
+          />
+          <div className="venue-kiosk-results">
+            {matches.length === 0 && <p>Search for a player to find their table.</p>}
+            {matches.map((entry) => (
+              <div key={`${entry.player.id}-${entry.table.table}`}>
+                <span>{entry.player.name}</span>
+                <strong>
+                  {entry.table.table === "Byes" ? "Bye" : `Table ${entry.table.table}`}
+                </strong>
+                <p>{entry.zone ? entry.zone.label : "Zone not mapped"}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="venue-kiosk-panel">
+          <HeatmapScene state={state} floorMap={floorMap} />
+        </section>
+
+        <section className="venue-kiosk-panel">
+          <ScheduleScene state={state} />
+        </section>
+      </main>
     </div>
   );
 }

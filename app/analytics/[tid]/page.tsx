@@ -144,6 +144,271 @@ function DrawRateCard({ state }: { state: LiveTournamentState }) {
   );
 }
 
+function CutWatchCard({ state }: { state: LiveTournamentState }) {
+  if (state.standings.length === 0) {
+    return (
+      <div className="analytics-card">
+        <h2>Cut Watch</h2>
+        <p className="text-muted">Standings will appear after the first completed round.</p>
+      </div>
+    );
+  }
+
+  const cutSize = state.standings.length >= 16 ? 16 : Math.min(8, state.standings.length);
+  const cutoff = state.standings[cutSize - 1];
+  const bubble = cutoff
+    ? state.standings
+        .filter((entry) => Math.abs(entry.points - cutoff.points) <= 3)
+        .slice(0, 10)
+    : [];
+
+  return (
+    <div className="analytics-card">
+      <h2>Cut Watch</h2>
+      <div className="cut-watch-hero">
+        <span>Projected cut</span>
+        <strong>Top {cutSize}</strong>
+        <p>
+          {cutoff
+            ? `${cutoff.points} points at #${cutSize}`
+            : "Waiting for standings"}
+        </p>
+      </div>
+      <div className="cut-watch-list">
+        {bubble.map((entry) => (
+          <div key={entry.id}>
+            <span>#{entry.standing}</span>
+            <strong>{entry.name}</strong>
+            <small>{entry.points} pts</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function collectCommanderNames(value: unknown, depth = 0): string[] {
+  if (depth > 4 || value == null) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectCommanderNames(item, depth + 1));
+  }
+  if (typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const hits: string[] = [];
+  for (const [key, child] of Object.entries(record)) {
+    const lowered = key.toLowerCase();
+    if (lowered.includes("commander") || lowered === "partner") {
+      hits.push(...collectCommanderNames(child, depth + 1));
+    } else if (depth < 2) {
+      hits.push(...collectCommanderNames(child, depth + 1));
+    }
+  }
+  return hits;
+}
+
+function MetagameDashboardCard({ state }: { state: LiveTournamentState }) {
+  const archetypes = new Map<string, { count: number; points: number; topCut: number }>();
+  const cutSize = state.standings.length >= 16 ? 16 : Math.min(8, state.standings.length);
+
+  for (const standing of state.standings) {
+    const commanders = collectCommanderNames(standing.deckObj)
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const label = commanders.length > 0 ? commanders.slice(0, 2).join(" / ") : "Unknown deck";
+    const entry = archetypes.get(label) ?? { count: 0, points: 0, topCut: 0 };
+    entry.count += 1;
+    entry.points += standing.points;
+    entry.topCut += standing.standing <= cutSize ? 1 : 0;
+    archetypes.set(label, entry);
+  }
+
+  const rows = [...archetypes.entries()]
+    .map(([name, stats]) => ({
+      name,
+      ...stats,
+      averagePoints: stats.count > 0 ? stats.points / stats.count : 0,
+    }))
+    .sort((a, b) => b.count - a.count || b.averagePoints - a.averagePoints)
+    .slice(0, 8);
+
+  return (
+    <div className="analytics-card">
+      <h2>Metagame</h2>
+      {rows.length === 0 ? (
+        <p className="text-muted">Deck data is not available yet.</p>
+      ) : (
+        <div className="meta-breakdown-list">
+          {rows.map((row) => (
+            <div key={row.name}>
+              <strong>{row.name}</strong>
+              <span>{row.count} players</span>
+              <small>
+                {row.averagePoints.toFixed(1)} avg pts · {row.topCut} in projected cut
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BubblePredictorCard({ state }: { state: LiveTournamentState }) {
+  if (state.standings.length === 0) return null;
+  const cutSize = state.standings.length >= 16 ? 16 : Math.min(8, state.standings.length);
+  const cutoff = state.standings[cutSize - 1];
+  const bubble = cutoff
+    ? state.standings.filter((entry) => Math.abs(entry.points - cutoff.points) <= 3)
+    : [];
+
+  return (
+    <div className="analytics-card">
+      <h2>Bubble Predictor</h2>
+      <div className="bubble-summary">
+        <span>Cut line</span>
+        <strong>{cutoff ? `${cutoff.points} pts` : "-"}</strong>
+        <p>Players within one match of Top {cutSize}</p>
+      </div>
+      <div className="bubble-player-list">
+        {bubble.slice(0, 8).map((entry) => {
+          const risk =
+            entry.standing <= cutSize && entry.points === cutoff?.points
+              ? "breakers risk"
+              : entry.standing > cutSize && entry.points + 3 >= (cutoff?.points ?? 0)
+              ? "win-and-in"
+              : "near cut";
+          return (
+            <div key={entry.id}>
+              <span>#{entry.standing}</span>
+              <strong>{entry.name}</strong>
+              <small>{entry.points} pts · {risk}</small>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RoundQualityMonitorCard({ state }: { state: LiveTournamentState }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const activeTables = state.tables.filter((table) => table.status === "Active");
+  const pendingTables = state.tables.filter((table) => table.status === "Pending");
+  const completedTables = state.tables.filter((table) => table.status === "Completed");
+  const draws = completedTables.filter((table) => table.winner_id === "Draw").length;
+  const drawRate =
+    completedTables.length > 0 ? Math.round((draws / completedTables.length) * 100) : null;
+  const overtime =
+    now != null &&
+    state.roundStartedAt != null &&
+    state.roundTimeMinutes != null &&
+    now > state.roundStartedAt + state.roundTimeMinutes * 60_000;
+
+  return (
+    <div className="analytics-card">
+      <h2>Round Quality</h2>
+      <div className="quality-grid">
+        <div>
+          <span>Active</span>
+          <strong>{activeTables.length}</strong>
+        </div>
+        <div>
+          <span>Pending</span>
+          <strong>{pendingTables.length}</strong>
+        </div>
+        <div>
+          <span>Draw rate</span>
+          <strong>{drawRate == null ? "-" : `${drawRate}%`}</strong>
+        </div>
+        <div>
+          <span>Clock</span>
+          <strong>{overtime ? "Overtime" : state.roundStatus}</strong>
+        </div>
+      </div>
+      {activeTables.length > 0 && (
+        <p className="text-muted">
+          Watch tables {activeTables.slice(0, 6).map((table) => table.table).join(", ")}
+          {activeTables.length > 6 ? " and more" : ""}.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PlayerJourneyView({ data }: { data: RoundByRoundData }) {
+  const [selectedId, setSelectedId] = useState(data.rows[0]?.player.id ?? "");
+  if (!data.rows.length) return null;
+  const selected = data.rows.find((row) => row.player.id === selectedId) ?? data.rows[0];
+
+  return (
+    <div className="analytics-card-wide">
+      <h2>Player Journey</h2>
+      <select
+        className="journey-select"
+        aria-label="Select player for journey view"
+        value={selected.player.id}
+        onChange={(event) => setSelectedId(event.target.value)}
+      >
+        {data.rows.map((row) => (
+          <option key={row.player.id} value={row.player.id}>
+            {row.finalStanding ? `#${row.finalStanding} ` : ""}
+            {row.player.name}
+          </option>
+        ))}
+      </select>
+      <div className="journey-strip">
+        {data.columns.map((column, index) => {
+          const result = selected.results[index];
+          return (
+            <div key={column.key} className={result ? RESULT_CLASS[result] : ""}>
+              <span>{column.label}</span>
+              <strong>{result ? RESULT_LABEL[result] : "-"}</strong>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-muted">
+        Final: {selected.finalStanding ? `#${selected.finalStanding}` : "-"} ·{" "}
+        {selected.finalPoints ?? "-"} points
+      </p>
+    </div>
+  );
+}
+
+function PostEventReportCard({
+  state,
+  tid,
+}: {
+  state: LiveTournamentState;
+  tid: string;
+}) {
+  const winner = state.winner?.name ?? state.standings[0]?.name ?? "Winner pending";
+  const topDeck = collectCommanderNames(state.standings[0]?.deckObj).slice(0, 2).join(" / ");
+  const reportText = `${state.name || "Tournament"} finished with ${winner} on top${
+    topDeck ? ` piloting ${topDeck}` : ""
+  }. ${state.participantCount ?? state.players.length} players competed across ${
+    state.roundHistory.length || state.currentRound || "multiple"
+  } rounds.`;
+
+  return (
+    <div className="analytics-card-wide report-generator-card">
+      <h2>Post-event Report</h2>
+      <p>{reportText}</p>
+      <Link href={`/recap/${tid}`} className="btn-secondary">
+        Open shareable recap
+      </Link>
+    </div>
+  );
+}
+
 function PlayerStatsCard({ playerStats }: { playerStats: PlayerStat[] }) {
   if (playerStats.length === 0) {
     return (
@@ -455,12 +720,21 @@ export default function AnalyticsPage({ params }: Props) {
               <RoundByRoundCard data={rbrData} />
             )}
 
+            {rbrData && rbrData.columns.length > 0 && (
+              <PlayerJourneyView data={rbrData} />
+            )}
+
             <div className="analytics-grid">
               {!state.finished && <RoundProgressCard state={state} />}
+              <CutWatchCard state={state} />
+              <BubblePredictorCard state={state} />
+              <MetagameDashboardCard state={state} />
+              <RoundQualityMonitorCard state={state} />
               <SeatStatsCard seatStats={analytics.seatStats} />
               <DrawRateCard state={state} />
             </div>
 
+            {state.finished && <PostEventReportCard state={state} tid={tid} />}
             <PlayerStatsCard playerStats={analytics.playerStats} />
             <AdminPanel tid={tid} />
             <EventsLog tid={tid} />

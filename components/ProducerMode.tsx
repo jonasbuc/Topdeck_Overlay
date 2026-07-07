@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTournamentLive } from "@/hooks/useTournamentLive";
+import { BroadcastRunbookPanel } from "@/components/EventOpsAdvanced";
 import type { TopDeckTable } from "@/lib/topdeck/types";
 
 interface Props {
@@ -42,12 +43,28 @@ function scenePath(tid: string, scene: ProducerScene, featureTable: string): str
   return `/overlay/${tid}/${scene}`;
 }
 
+function playerRecordLabel(
+  state: ReturnType<typeof useTournamentLive>["state"],
+  playerId: string,
+  playerName: string
+): string {
+  const standing = state?.standings.find(
+    (entry) =>
+      entry.id === playerId ||
+      entry.name.trim().toLowerCase() === playerName.trim().toLowerCase()
+  );
+  return standing ? `#${standing.standing} · ${standing.points} pts` : "Record pending";
+}
+
 export function ProducerMode({ tid }: Props) {
   const { state, connected, error } = useTournamentLive(tid);
   const [origin, setOrigin] = useState("");
   const [scene, setScene] = useState<ProducerScene>("full");
   const [featureTable, setFeatureTable] = useState("");
   const [announcement, setAnnouncement] = useState("");
+  const [lowerTitle, setLowerTitle] = useState("");
+  const [lowerSubtitle, setLowerSubtitle] = useState("");
+  const [sponsorLine, setSponsorLine] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +85,26 @@ export function ProducerMode({ tid }: Props) {
   const path = scenePath(tid, scene, featureTable);
   const baseUrl = origin || "http://localhost:3000";
   const url = `${baseUrl}${path}`;
+  const selectedFeatureTable =
+    tables.find((table) => String(table.table) === featureTable) ?? tables[0] ?? null;
+  const lowerThirdUrl = `${baseUrl}/overlay/${tid}/lower-third?title=${encodeURIComponent(
+    lowerTitle
+  )}&subtitle=${encodeURIComponent(lowerSubtitle)}&sponsor=${encodeURIComponent(sponsorLine)}`;
+  const sceneSuggestions = [
+    ...(state?.finished
+      ? [{ scene: "winner" as ProducerScene, label: "Winner available" }]
+      : []),
+    ...(state?.roundStatus === "ended"
+      ? [{ scene: "standings" as ProducerScene, label: "Round ended: show standings" }]
+      : []),
+    ...(selectedFeatureTable?.status === "Active"
+      ? [{ scene: "feature" as ProducerScene, label: "Feature match is active" }]
+      : []),
+    ...(state && state.tables.length === 0
+      ? [{ scene: "clock" as ProducerScene, label: "Waiting: show clock" }]
+      : []),
+    { scene: "ticker" as ProducerScene, label: "Results ticker for break" },
+  ].slice(0, 4);
 
   const copy = (value: string) => {
     navigator.clipboard.writeText(value).then(
@@ -112,7 +149,9 @@ export function ProducerMode({ tid }: Props) {
         </div>
         <div className="producer-header-actions">
           <Link href={`/dashboard/${tid}`}>Dashboard</Link>
+          <Link href={`/to/${tid}`}>TO</Link>
           <Link href={`/event/${tid}`} target="_blank">Player page</Link>
+          <Link href={`/commentator/${tid}`}>Commentator</Link>
           <Link href={`/recap/${tid}`}>Recap</Link>
         </div>
       </header>
@@ -162,6 +201,44 @@ export function ProducerMode({ tid }: Props) {
             <button type="button" onClick={() => copy(`${baseUrl}/overlay/${tid}/ticker`)}>
               Copy ticker
             </button>
+            <button type="button" onClick={() => copy(`${baseUrl}/commentator/${tid}`)}>
+              Copy commentator
+            </button>
+          </div>
+
+          <div className="producer-suggestions">
+            <span>Scene suggestions</span>
+            {sceneSuggestions.map((suggestion) => (
+              <button
+                key={`${suggestion.scene}-${suggestion.label}`}
+                type="button"
+                onClick={() => setScene(suggestion.scene)}
+              >
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="producer-lower-third-builder">
+            <h3>Lower Third Builder</h3>
+            <input
+              value={lowerTitle}
+              onChange={(event) => setLowerTitle(event.target.value)}
+              placeholder="Title"
+            />
+            <input
+              value={lowerSubtitle}
+              onChange={(event) => setLowerSubtitle(event.target.value)}
+              placeholder="Subtitle"
+            />
+            <input
+              value={sponsorLine}
+              onChange={(event) => setSponsorLine(event.target.value)}
+              placeholder="Sponsor line"
+            />
+            <button type="button" onClick={() => copy(lowerThirdUrl)}>
+              Copy lower third
+            </button>
           </div>
 
           <label className="producer-field">
@@ -192,6 +269,32 @@ export function ProducerMode({ tid }: Props) {
           <iframe title="Overlay preview" src={path} />
         </section>
       </main>
+
+      <section className="producer-script-grid">
+        <div className="card producer-script-panel">
+          <h2>Stream Script</h2>
+          {selectedFeatureTable ? (
+            <>
+              <span>{tableLabel(selectedFeatureTable)}</span>
+              <div className="producer-script-players">
+                {selectedFeatureTable.players.map((player) => (
+                  <div key={player.id}>
+                    <strong>{player.name}</strong>
+                    <small>{playerRecordLabel(state, player.id, player.name)}</small>
+                  </div>
+                ))}
+              </div>
+              <p>
+                Talking points: current round, player records, commander identities,
+                standings pressure and recent table pace.
+              </p>
+            </>
+          ) : (
+            <p>No feature table selected.</p>
+          )}
+        </div>
+        <BroadcastRunbookPanel tid={tid} />
+      </section>
     </div>
   );
 }

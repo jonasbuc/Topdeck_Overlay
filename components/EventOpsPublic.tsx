@@ -6,10 +6,12 @@ import type {
   FloorMapZone,
   JudgeCallCategory,
   JudgeCallDTO,
+  PlayerRequestDTO,
+  PlayerRequestType,
   TournamentAnnouncementDTO,
   TournamentFloorMapDTO,
 } from "@/lib/event-ops/types";
-import { JUDGE_CALL_CATEGORIES } from "@/lib/event-ops/types";
+import { JUDGE_CALL_CATEGORIES, PLAYER_REQUEST_TYPES } from "@/lib/event-ops/types";
 
 interface AnnouncementResponse {
   announcements: TournamentAnnouncementDTO[];
@@ -23,6 +25,10 @@ interface JudgeCallResponse {
   call: JudgeCallDTO;
 }
 
+interface PlayerRequestResponse {
+  request: PlayerRequestDTO;
+}
+
 const CATEGORY_LABELS: Record<JudgeCallCategory, string> = {
   rules: "Rules question",
   deck_check: "Deck check",
@@ -30,6 +36,14 @@ const CATEGORY_LABELS: Record<JudgeCallCategory, string> = {
   result_issue: "Result issue",
   logistics: "Logistics",
   other: "Other",
+};
+
+const REQUEST_LABELS: Record<PlayerRequestType, string> = {
+  lost_item: "Lost item",
+  water: "Need water",
+  accessibility: "Accessibility help",
+  drop: "Drop from event",
+  help: "TO help",
 };
 
 export interface EventSelectedPlayer {
@@ -178,6 +192,111 @@ export function PlayerJudgeCallForm({
           disabled={submitting || (!playerName.trim() && !table.trim() && !message.trim())}
         >
           {submitting ? "Sending..." : "Send request"}
+        </button>
+        {status && <span>{status}</span>}
+      </div>
+    </section>
+  );
+}
+
+export function PlayerHelpDeskForm({
+  tid,
+  selectedPlayer,
+  selectedTable,
+}: {
+  tid: string;
+  selectedPlayer: EventSelectedPlayer | null;
+  selectedTable: TopDeckTable | null;
+}) {
+  const [playerName, setPlayerName] = useState("");
+  const [table, setTable] = useState("");
+  const [type, setType] = useState<PlayerRequestType>("help");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setPlayerName(selectedPlayer?.name ?? "");
+  }, [selectedPlayer?.name]);
+
+  useEffect(() => {
+    setTable(tableNumber(selectedTable));
+  }, [selectedTable]);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setStatus(null);
+    try {
+      const res = await fetch(`/api/tournaments/${tid}/player-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          tableNumber: table,
+          playerName,
+          message,
+          priority: type === "accessibility" ? "high" : "normal",
+        }),
+      });
+      if (!res.ok) throw new Error("request_failed");
+      const payload = (await res.json()) as PlayerRequestResponse;
+      setStatus(
+        `${REQUEST_LABELS[payload.request.type]} sent${
+          payload.request.tableNumber
+            ? ` for table ${payload.request.tableNumber}`
+            : ""
+        }.`
+      );
+      setMessage("");
+    } catch {
+      setStatus("Could not send help request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section id="help-desk" className="event-panel event-help-panel">
+      <div className="event-panel-header">
+        <h2>Help Desk</h2>
+      </div>
+      <div className="event-judge-grid">
+        <input
+          value={playerName}
+          onChange={(event) => setPlayerName(event.target.value)}
+          placeholder="Your name"
+        />
+        <input
+          value={table}
+          onChange={(event) => setTable(event.target.value)}
+          placeholder="Table"
+        />
+        <select
+          value={type}
+          onChange={(event) => setType(event.target.value as PlayerRequestType)}
+        >
+          {PLAYER_REQUEST_TYPES.map((option) => (
+            <option key={option} value={option}>
+              {REQUEST_LABELS[option]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <textarea
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        placeholder="Short note, e.g. black hoodie by table 8, need water, accessibility support"
+        rows={3}
+      />
+      <div className="event-judge-actions">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={
+            submitting || (!playerName.trim() && !table.trim() && !message.trim())
+          }
+        >
+          {submitting ? "Sending..." : "Send help request"}
         </button>
         {status && <span>{status}</span>}
       </div>

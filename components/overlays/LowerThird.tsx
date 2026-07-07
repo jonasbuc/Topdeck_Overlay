@@ -18,10 +18,32 @@ interface Props {
   standings: TopDeckStanding[];
   /** How many standings entries to show. Default 8. */
   maxEntries?: number;
+  title?: string | null;
+  subtitle?: string | null;
+  sponsorLine?: string | null;
 }
 
-export function LowerThird({ standings, maxEntries = 8 }: Props) {
+export function LowerThird({
+  standings,
+  maxEntries = 8,
+  title,
+  subtitle,
+  sponsorLine,
+}: Props) {
   const shown = standings.slice(0, maxEntries);
+  const custom = title || subtitle || sponsorLine;
+
+  if (custom) {
+    return (
+      <div className="lower-third-root custom">
+        <div className="lower-third-label">{sponsorLine || "Live"}</div>
+        <div className="lower-third-custom-copy">
+          <strong>{title || "Feature Match"}</strong>
+          {subtitle && <span>{subtitle}</span>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="lower-third-root">

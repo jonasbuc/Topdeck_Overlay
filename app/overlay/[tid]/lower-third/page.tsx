@@ -17,6 +17,7 @@ interface Props {
  *
  * Query params:
  *   ?entries=<n>  — number of standings entries to show (default 8)
+ *   ?title=&subtitle=&sponsor= — custom lower third copy
  */
 export default function LowerThirdOverlayPage({ params }: Props) {
   const { tid } = params;
@@ -27,11 +28,17 @@ export default function LowerThirdOverlayPage({ params }: Props) {
     1,
     parseInt(searchParams.get("entries") ?? "8", 10) || 8
   );
+  const title = searchParams.get("title");
+  const subtitle = searchParams.get("subtitle");
+  const sponsorLine = searchParams.get("sponsor");
 
   return (
     <LowerThird
       standings={state?.standings ?? []}
       maxEntries={maxEntries}
+      title={title}
+      subtitle={subtitle}
+      sponsorLine={sponsorLine}
     />
   );
 }

@@ -7,6 +7,7 @@ import { ParkingSection } from "@/components/ParkingSection";
 import { RoundClock } from "@/components/RoundClock";
 import {
   EventAnnouncementBanner,
+  PlayerHelpDeskForm,
   PlayerJudgeCallForm,
   PublicFloorMap,
 } from "@/components/EventOpsPublic";
@@ -16,6 +17,8 @@ import type {
   TopDeckStanding,
   TopDeckTable,
 } from "@/lib/topdeck/types";
+import type { JudgeCallDTO } from "@/lib/event-ops/types";
+import type { PlayerRequestDTO } from "@/lib/event-ops/types";
 
 interface Props {
   tid: string;
@@ -37,7 +40,34 @@ interface DiscordSnapshot {
   } | null;
 }
 
+interface JudgeCallsResponse {
+  calls: JudgeCallDTO[];
+}
+
+interface PlayerRequestsResponse {
+  requests: PlayerRequestDTO[];
+}
+
+interface CardLookupResult {
+  card: {
+    id: string;
+    name: string;
+    printedName: string | null;
+    manaCost: string | null;
+    typeLine: string | null;
+    oracleText: string | null;
+    imageUrl: string | null;
+    scryfallUri: string | null;
+    legalities: Record<string, string>;
+    rulings: Array<{
+      publishedAt: string;
+      comment: string;
+    }>;
+  };
+}
+
 type TableStatusFilter = "all" | "active" | "pending" | "completed";
+type LocalResult = "win" | "loss" | "draw" | "drop" | null;
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -126,6 +156,139 @@ function getTableResult(table: TopDeckTable): string {
   return table.winner ? `${table.winner} won` : "Completed";
 }
 
+function getPlayerResult(table: TopDeckTable, player: PlayerOption | null): string {
+  if (!player) return getTableResult(table);
+  if (table.status === "Bye") return "Bye";
+  if (table.status !== "Completed") return table.status;
+  if (table.winner_id === "Draw") return "Draw";
+  if (table.players.some((tablePlayer) => samePlayer(tablePlayer, player))) {
+    return table.winner_id === player.id || normalize(table.winner ?? "") === normalize(player.name)
+      ? "Win"
+      : "Loss";
+  }
+  return getTableResult(table);
+}
+
+function opponentNames(table: TopDeckTable | null, player: PlayerOption | null): string {
+  if (!table || !player) return "-";
+  const opponents = table.players
+    .filter((tablePlayer) => !samePlayer(tablePlayer, player))
+    .map((tablePlayer) => tablePlayer.name);
+  return opponents.length > 0 ? opponents.join(" / ") : "Bye";
+}
+
+function findStandingForPlayer(
+  state: LiveTournamentState,
+  player: Pick<PlayerOption, "id" | "name">
+): TopDeckStanding | null {
+  return (
+    state.standings.find(
+      (standing) =>
+        standing.id === player.id || normalize(standing.name) === normalize(player.name)
+    ) ?? null
+  );
+}
+
+function collectCommanderCandidates(value: unknown, depth = 0): string[] {
+  if (depth > 4 || value == null) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectCommanderCandidates(item, depth + 1));
+  }
+  if (typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const hits: string[] = [];
+  for (const [key, child] of Object.entries(record)) {
+    const lowered = key.toLowerCase();
+    if (lowered.includes("commander") || lowered === "partner") {
+      hits.push(...collectCommanderCandidates(child, depth + 1));
+    } else if (depth < 2) {
+      hits.push(...collectCommanderCandidates(child, depth + 1));
+    }
+  }
+  return hits;
+}
+
+function commanderNamesForTable(
+  state: LiveTournamentState,
+  table: TopDeckTable | null
+): string[] {
+  if (!table) return [];
+  const names = new Set<string>();
+  for (const tablePlayer of table.players) {
+    const standing = findStandingForPlayer(state, {
+      id: tablePlayer.id,
+      name: tablePlayer.name,
+    });
+    for (const name of collectCommanderCandidates(standing?.deckObj)) {
+      const clean = name.trim();
+      if (clean && clean.length <= 80) names.add(clean);
+    }
+  }
+  return [...names].slice(0, 8);
+}
+
+function nextPlayerAction(
+  state: LiveTournamentState,
+  player: PlayerOption | null,
+  table: TopDeckTable | null,
+  activeJudgeCall: JudgeCallDTO | null
+): { label: string; detail: string; tone: "ready" | "wait" | "urgent" } {
+  if (!player) {
+    return {
+      label: "Select your player profile",
+      detail: "Pick your name once to unlock table, standings and judge-call status.",
+      tone: "wait",
+    };
+  }
+  if (activeJudgeCall) {
+    return {
+      label:
+        activeJudgeCall.status === "acknowledged"
+          ? "Judge acknowledged"
+          : "Judge request open",
+      detail: activeJudgeCall.tableNumber
+        ? `Table ${activeJudgeCall.tableNumber} · ${activeJudgeCall.category}`
+        : activeJudgeCall.category,
+      tone: activeJudgeCall.priority === "urgent" ? "urgent" : "wait",
+    };
+  }
+  if (state.finished) {
+    return {
+      label: "Event complete",
+      detail: "Check final standings and event recap.",
+      tone: "ready",
+    };
+  }
+  if (!table) {
+    return {
+      label: state.roundStatus === "pending" ? "Waiting for pairings" : "No active table",
+      detail: "Keep the player page open; pairings update live.",
+      tone: "wait",
+    };
+  }
+  if (table.status === "Completed") {
+    return {
+      label: "Match complete",
+      detail: `Recorded as ${getPlayerResult(table, player)}. Check standings after round end.`,
+      tone: "ready",
+    };
+  }
+  if (table.status === "Pending") {
+    return {
+      label: `Head to Table ${table.table}`,
+      detail: `Opponent: ${opponentNames(table, player)}`,
+      tone: "wait",
+    };
+  }
+  return {
+    label: `Playing at Table ${table.table}`,
+    detail: `Opponent: ${opponentNames(table, player)}`,
+    tone: "ready",
+  };
+}
+
 function discordChannelUrl(discord: DiscordSnapshot | null): string | null {
   if (!discord?.link) return null;
   return `https://discord.com/channels/${discord.link.guildId}/${discord.link.channelId}`;
@@ -135,6 +298,243 @@ function copyTableSummary(table: TopDeckTable): Promise<void> {
   const players = table.players.map((player) => player.name).join(" vs ");
   const tableLabel = table.table === "Byes" ? "Byes" : `Table ${table.table}`;
   return navigator.clipboard.writeText(`${tableLabel}: ${players}`);
+}
+
+function ResultSlipHelper({
+  selectedPlayer,
+  selectedTable,
+  localResult,
+  onChange,
+}: {
+  selectedPlayer: PlayerOption | null;
+  selectedTable: TopDeckTable | null;
+  localResult: LocalResult;
+  onChange: (result: LocalResult) => void;
+}) {
+  const tableLabel =
+    selectedTable && selectedTable.table !== "Byes" ? `Table ${selectedTable.table}` : "No table";
+  const opponent = opponentNames(selectedTable, selectedPlayer);
+  const reportText =
+    !selectedPlayer || !selectedTable
+      ? "Select your player profile first."
+      : localResult === "win"
+      ? `Report: ${selectedPlayer.name} won at ${tableLabel}`
+      : localResult === "loss"
+      ? `Report: opponent won at ${tableLabel}`
+      : localResult === "draw"
+      ? `Report: draw at ${tableLabel}`
+      : localResult === "drop"
+      ? `Ask TO to drop ${selectedPlayer.name} after this round`
+      : `Choose a result for ${tableLabel}`;
+
+  return (
+    <section className="event-panel event-tool-panel">
+      <div className="event-panel-header">
+        <h2>Result Slip Helper</h2>
+      </div>
+      <div className="event-result-helper">
+        <div>
+          <span>{tableLabel}</span>
+          <strong>{selectedPlayer?.name ?? "No player selected"}</strong>
+          <p>Opponent: {opponent}</p>
+        </div>
+        <div className="event-result-actions">
+          {[
+            ["win", "Win"],
+            ["loss", "Loss"],
+            ["draw", "Draw"],
+            ["drop", "Drop"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={localResult === value ? "active" : ""}
+              onClick={() => onChange(value as LocalResult)}
+              disabled={!selectedPlayer || !selectedTable}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="event-report-display">{reportText}</div>
+      </div>
+    </section>
+  );
+}
+
+function CommanderLookup({
+  tid,
+  commanderCandidates,
+}: {
+  tid: string;
+  commanderCandidates: string[];
+}) {
+  const [query, setQuery] = useState("");
+  const [result, setResult] = useState<CardLookupResult["card"] | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const search = async (value = query) => {
+    const clean = value.trim();
+    if (!clean) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/judge/cards?query=${encodeURIComponent(clean)}`);
+      const payload = (await res.json()) as CardLookupResult | { detail?: string };
+      if (!res.ok || !("card" in payload)) {
+        throw new Error("detail" in payload ? payload.detail : "Card not found");
+      }
+      setResult(payload.card);
+      setQuery(payload.card.name);
+    } catch (err) {
+      setResult(null);
+      setMessage(err instanceof Error ? err.message : "Card lookup failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="event-panel event-card-lookup-panel">
+      <div className="event-panel-header">
+        <h2>Commander Lookup</h2>
+        <Link href={`/judge/${tid}`} className="event-ghost-link">
+          Judge tools
+        </Link>
+      </div>
+      {commanderCandidates.length > 0 && (
+        <div className="event-commander-chips">
+          {commanderCandidates.map((name) => (
+            <button key={name} type="button" onClick={() => search(name)}>
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="event-card-search-row">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Card or commander name"
+        />
+        <button type="button" onClick={() => search()} disabled={loading || !query.trim()}>
+          {loading ? "Searching..." : "Lookup"}
+        </button>
+      </div>
+      {message && <p className="event-muted-line">{message}</p>}
+      {result && (
+        <article className="event-card-result">
+          {result.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={result.imageUrl} alt={result.name} />
+          )}
+          <div>
+            <span>{result.manaCost ?? "No mana cost"}</span>
+            <strong>{result.name}</strong>
+            {result.printedName && <p>Printed name: {result.printedName}</p>}
+            <p>{result.typeLine}</p>
+            <p>{result.oracleText}</p>
+            <div className="event-card-links">
+              <span>
+                Commander: {result.legalities.commander ?? "unknown"}
+              </span>
+              {result.scryfallUri && (
+                <a href={result.scryfallUri} target="_blank" rel="noreferrer">
+                  Oracle
+                </a>
+              )}
+            </div>
+            {result.rulings.length > 0 && (
+              <div className="event-ruling-preview">
+                <span>Latest ruling</span>
+                <p>{result.rulings[0].comment}</p>
+              </div>
+            )}
+          </div>
+        </article>
+      )}
+    </section>
+  );
+}
+
+function ReminderPanel({ state }: { state: LiveTournamentState }) {
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
+    "unsupported"
+  );
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPermission("Notification" in window ? Notification.permission : "unsupported");
+  }, []);
+
+  useEffect(() => {
+    if (
+      permission !== "granted" ||
+      state.roundStatus !== "active" ||
+      !state.roundStartedAt ||
+      !state.roundTimeMinutes
+    ) {
+      return;
+    }
+
+    const roundEnd = state.roundStartedAt + state.roundTimeMinutes * 60_000;
+    const fiveMinuteReminder = roundEnd - 5 * 60_000 - Date.now();
+    if (fiveMinuteReminder <= 0) return;
+
+    const id = window.setTimeout(() => {
+      new Notification("5 minutes left", {
+        body: `${formatRoundLabel(state)} is almost over.`,
+      });
+    }, fiveMinuteReminder);
+    return () => window.clearTimeout(id);
+  }, [permission, state]);
+
+  const enable = async () => {
+    if (!("Notification" in window)) {
+      setPermission("unsupported");
+      setMessage("Notifications are not supported in this browser.");
+      return;
+    }
+    const next = await Notification.requestPermission();
+    setPermission(next);
+    setMessage(
+      next === "granted"
+        ? "Round reminders enabled on this device."
+        : "Notifications were not enabled."
+    );
+  };
+
+  return (
+    <section id="reminders" className="event-panel event-reminder-panel">
+      <div className="event-panel-header">
+        <h2>Reminders</h2>
+      </div>
+      <div className="event-reminder-grid">
+        <div>
+          <span>Pairings</span>
+          <strong>{state.tables.length > 0 ? "Posted" : "Waiting"}</strong>
+        </div>
+        <div>
+          <span>Timer</span>
+          <strong>{state.roundStatus}</strong>
+        </div>
+        <div>
+          <span>Notifications</span>
+          <strong>{permission}</strong>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="event-ghost-btn"
+        onClick={enable}
+        disabled={permission === "granted" || permission === "unsupported"}
+      >
+        Enable device reminders
+      </button>
+      {message && <p className="event-muted-line">{message}</p>}
+    </section>
+  );
 }
 
 function EventTableCard({
@@ -194,6 +594,10 @@ export function EventCompanion({ tid }: Props) {
   const [tableFilter, setTableFilter] = useState<TableStatusFilter>("all");
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [discord, setDiscord] = useState<DiscordSnapshot | null>(null);
+  const [judgeCalls, setJudgeCalls] = useState<JudgeCallDTO[]>([]);
+  const [playerRequests, setPlayerRequests] = useState<PlayerRequestDTO[]>([]);
+  const [localResult, setLocalResult] = useState<LocalResult>(null);
+  const [accessibilityView, setAccessibilityView] = useState(false);
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
 
@@ -212,6 +616,32 @@ export function EventCompanion({ tid }: Props) {
       .then((res) => (res.ok ? res.json() : null))
       .then((data: DiscordSnapshot | null) => setDiscord(data))
       .catch(() => setDiscord(null));
+  }, [tid]);
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`/api/tournaments/${tid}/judge-calls`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: JudgeCallsResponse | null) => setJudgeCalls(data?.calls ?? []))
+        .catch(() => setJudgeCalls([]));
+    };
+    load();
+    const id = window.setInterval(load, 7000);
+    return () => window.clearInterval(id);
+  }, [tid]);
+
+  useEffect(() => {
+    const load = () => {
+      fetch(`/api/tournaments/${tid}/player-requests`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: PlayerRequestsResponse | null) =>
+          setPlayerRequests(data?.requests ?? [])
+        )
+        .catch(() => setPlayerRequests([]));
+    };
+    load();
+    const id = window.setInterval(load, 8000);
+    return () => window.clearInterval(id);
   }, [tid]);
 
   useEffect(() => {
@@ -269,6 +699,39 @@ export function EventCompanion({ tid }: Props) {
   }, [query, state, tableFilter]);
 
   const channelUrl = discordChannelUrl(discord);
+  const selectedJudgeCalls = useMemo(() => {
+    if (!selectedPlayer) return [];
+    return judgeCalls.filter((call) => {
+      const sameName =
+        call.playerName != null &&
+        normalize(call.playerName) === normalize(selectedPlayer.name);
+      const sameTable =
+        selectedTable?.table != null &&
+        selectedTable.table !== "Byes" &&
+        call.tableNumber === String(selectedTable.table);
+      return sameName || sameTable;
+    });
+  }, [judgeCalls, selectedPlayer, selectedTable]);
+  const activeJudgeCall =
+    selectedJudgeCalls.find((call) => call.status !== "resolved") ?? null;
+  const selectedPlayerRequests = useMemo(() => {
+    if (!selectedPlayer) return [];
+    return playerRequests.filter((request) => {
+      const sameName =
+        request.playerName != null &&
+        normalize(request.playerName) === normalize(selectedPlayer.name);
+      const sameTable =
+        selectedTable?.table != null &&
+        selectedTable.table !== "Byes" &&
+        request.tableNumber === String(selectedTable.table);
+      return sameName || sameTable;
+    });
+  }, [playerRequests, selectedPlayer, selectedTable]);
+  const activePlayerRequest =
+    selectedPlayerRequests.find((request) => request.status !== "resolved") ?? null;
+  const commanderCandidates = state
+    ? commanderNamesForTable(state, selectedTable)
+    : [];
 
   const selectPlayer = (player: PlayerOption) => {
     setSelectedPlayerId(player.id);
@@ -330,7 +793,7 @@ export function EventCompanion({ tid }: Props) {
   const pendingCount = state.tables.filter((table) => table.status === "Pending").length;
 
   return (
-    <div className="event-page">
+    <div className={`event-page${accessibilityView ? " accessibility-view" : ""}`}>
       <header
         className={`event-hero ${state.headerImage ? "with-image" : ""}`}
         style={
@@ -361,6 +824,13 @@ export function EventCompanion({ tid }: Props) {
                 Install
               </button>
             )}
+            <button
+              type="button"
+              className="event-install-btn"
+              onClick={() => setAccessibilityView((value) => !value)}
+            >
+              {accessibilityView ? "Standard" : "Accessibility"}
+            </button>
           </div>
 
           <h1>{state.name || `Tournament ${tid}`}</h1>
@@ -377,6 +847,9 @@ export function EventCompanion({ tid }: Props) {
         <nav className="event-jump-nav" aria-label="Event sections">
           <a href="#player">Player</a>
           <a href="#judge">Judge</a>
+          <a href="#help-desk">Help</a>
+          <a href="#tools">Tools</a>
+          <a href="#reminders">Reminders</a>
           <a href="#pairings">Pairings</a>
           <a href="#standings">Standings</a>
           <a href="#floor-map">Map</a>
@@ -384,6 +857,97 @@ export function EventCompanion({ tid }: Props) {
         </nav>
 
         <EventAnnouncementBanner tid={tid} />
+
+        <section className="event-command-center">
+          <div className="event-command-main">
+            <span className="event-kicker">Player command center</span>
+            {(() => {
+              const action = nextPlayerAction(
+                state,
+                selectedPlayer,
+                selectedTable,
+                activeJudgeCall
+              );
+              return (
+                <>
+                  <h2>{action.label}</h2>
+                  <p>{action.detail}</p>
+                  <span className={`event-command-status ${action.tone}`}>
+                    {action.tone === "ready"
+                      ? "Ready"
+                      : action.tone === "urgent"
+                      ? "Priority"
+                      : "Watch"}
+                  </span>
+                </>
+              );
+            })()}
+          </div>
+          <div className="event-command-grid">
+            <div className="event-command-card">
+              <span>Table</span>
+              <strong>
+                {selectedTable
+                  ? selectedTable.table === "Byes"
+                    ? "Bye"
+                    : `Table ${selectedTable.table}`
+                  : "-"}
+              </strong>
+              <p>{opponentNames(selectedTable, selectedPlayer)}</p>
+            </div>
+            <div className="event-command-card">
+              <span>Standing</span>
+              <strong>
+                {selectedStanding ? `#${selectedStanding.standing}` : "-"}
+              </strong>
+              <p>{selectedStanding ? `${selectedStanding.points} points` : "Select player"}</p>
+            </div>
+            <div className="event-command-card">
+              <span>Result helper</span>
+              <strong>
+                {selectedTable ? getPlayerResult(selectedTable, selectedPlayer) : "-"}
+              </strong>
+              <p>{selectedTable?.status ?? "No table selected"}</p>
+            </div>
+            <div className="event-command-card">
+              <span>Judge status</span>
+              <strong>{activeJudgeCall ? activeJudgeCall.status : "Clear"}</strong>
+              <p>
+                {activeJudgeCall
+                  ? `${activeJudgeCall.priority} · ${activeJudgeCall.category}`
+                  : "No active request"}
+                </p>
+              </div>
+            <div className="event-command-card">
+              <span>Help desk</span>
+              <strong>{activePlayerRequest ? activePlayerRequest.status : "Clear"}</strong>
+              <p>
+                {activePlayerRequest
+                  ? `${activePlayerRequest.type} · ${activePlayerRequest.priority}`
+                  : "No open request"}
+              </p>
+            </div>
+          </div>
+          <div className="event-command-actions">
+            <a href="#player">Player</a>
+            <a href="#pairings">Pairings</a>
+            <a href="#standings">Standings</a>
+            <a href="#floor-map">Map</a>
+            <a href="#judge">Call judge</a>
+            <a href="#help-desk">Help desk</a>
+            <a href="#tools">Card lookup</a>
+            {channelUrl && (
+              <a href={channelUrl} target="_blank" rel="noreferrer">
+                Discord
+              </a>
+            )}
+            {selectedTable && (
+              <button type="button" onClick={() => handleCopyTable(selectedTable)}>
+                Copy table
+              </button>
+            )}
+          </div>
+        </section>
 
         <section className="event-round-panel">
           <div className="event-round-copy">
@@ -495,6 +1059,24 @@ export function EventCompanion({ tid }: Props) {
             selectedTable={selectedTable}
           />
         </div>
+
+        <PlayerHelpDeskForm
+          tid={tid}
+          selectedPlayer={selectedPlayer}
+          selectedTable={selectedTable}
+        />
+
+        <div id="tools" className="event-tool-grid">
+          <ResultSlipHelper
+            selectedPlayer={selectedPlayer}
+            selectedTable={selectedTable}
+            localResult={localResult}
+            onChange={setLocalResult}
+          />
+          <CommanderLookup tid={tid} commanderCandidates={commanderCandidates} />
+        </div>
+
+        <ReminderPanel state={state} />
 
         <section id="pairings" className="event-panel">
           <div className="event-panel-header">

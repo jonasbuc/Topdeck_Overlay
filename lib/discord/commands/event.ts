@@ -33,6 +33,8 @@ export async function handleEventHub(
   const baseUrl = env.NEXT_PUBLIC_BASE_URL.replace(/\/$/, "");
   const eventUrl = `${baseUrl}/event/${tid}`;
   const recapUrl = `${baseUrl}/recap/${tid}`;
+  const standingsUrl = `${baseUrl}/analytics/${tid}`;
+  const venueUrl = `${baseUrl}/venue/${tid}?mode=kiosk`;
 
   const roundLabel =
     state?.roundLabel ||
@@ -46,13 +48,17 @@ export async function handleEventHub(
           title: state?.name || "TopDeck Live Event Hub",
           description:
             `Current status: **${state?.finished ? "Finished" : state?.status ?? "Live"}**` +
-            `\nRound: **${roundLabel}**`,
+            `\nRound: **${roundLabel}**` +
+            `\nTables: **${state?.tables?.length ?? 0}** · Standings: **${state?.standings?.length ?? 0} players**`,
           color: 0x22c55e,
           fields: [
             {
               name: "Player hub",
-              value:
-                "Use the buttons below for pairings, standings, table map, judge calls and the event recap.",
+              value: "Pairings, standings, table map, judge calls, help desk and recap.",
+            },
+            {
+              name: "Useful commands",
+              value: "`/topdeck player name:<player>` · `/topdeck pairings` · `/topdeck standings`",
             },
           ],
         },
@@ -66,6 +72,14 @@ export async function handleEventHub(
             { type: 2, style: 5, label: "Standings", url: `${eventUrl}#standings` },
             { type: 2, style: 5, label: "Venue Map", url: `${eventUrl}#floor-map` },
             { type: 2, style: 5, label: "Recap", url: recapUrl },
+          ],
+        },
+        {
+          type: 1,
+          components: [
+            { type: 2, style: 5, label: "Help Desk", url: `${eventUrl}#help-desk` },
+            { type: 2, style: 5, label: "Kiosk", url: venueUrl },
+            { type: 2, style: 5, label: "Analytics", url: standingsUrl },
           ],
         },
       ],

@@ -65,6 +65,118 @@ export interface TournamentFloorMapDTO {
   updatedAt: string | null;
 }
 
+export type PlayerRequestType =
+  | "lost_item"
+  | "water"
+  | "accessibility"
+  | "drop"
+  | "help";
+export type PlayerRequestStatus = "open" | "acknowledged" | "resolved";
+
+export interface PlayerRequestDTO {
+  id: string;
+  tid: string;
+  type: PlayerRequestType;
+  playerName: string | null;
+  tableNumber: string | null;
+  message: string | null;
+  status: PlayerRequestStatus;
+  priority: JudgeCallPriority;
+  assignedTo: string | null;
+  internalNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  acknowledgedAt: string | null;
+  resolvedAt: string | null;
+}
+
+export type StaffRole =
+  | "head_judge"
+  | "floor_judge"
+  | "scorekeeper"
+  | "coverage"
+  | "runner"
+  | "TO";
+export type StaffAssignmentStatus = "active" | "break" | "offline";
+
+export interface StaffAssignmentDTO {
+  id: string;
+  tid: string;
+  staffName: string;
+  role: StaffRole;
+  zone: string | null;
+  tableNumber: string | null;
+  status: StaffAssignmentStatus;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type IncidentCategory =
+  | "penalty"
+  | "appeal"
+  | "slow_play"
+  | "deck_issue"
+  | "conduct"
+  | "other";
+export type IncidentSeverity =
+  | "note"
+  | "warning"
+  | "game_loss"
+  | "match_loss"
+  | "disqualification";
+export type IncidentStatus = "open" | "closed";
+
+export interface IncidentLogDTO {
+  id: string;
+  tid: string;
+  playerName: string | null;
+  tableNumber: string | null;
+  category: IncidentCategory;
+  severity: IncidentSeverity;
+  summary: string;
+  ruling: string | null;
+  appealed: boolean;
+  status: IncidentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BroadcastSegment =
+  | "pre_round"
+  | "round"
+  | "break"
+  | "top_cut"
+  | "finals"
+  | "sponsor"
+  | "custom";
+export type BroadcastRunbookStatus = "queued" | "live" | "done";
+
+export interface BroadcastRunbookItemDTO {
+  id: string;
+  tid: string;
+  segment: BroadcastSegment;
+  title: string;
+  body: string | null;
+  status: BroadcastRunbookStatus;
+  featureTable: string | null;
+  lowerThird: string | null;
+  sponsorLine: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClipMarkerDTO {
+  id: string;
+  tid: string;
+  label: string;
+  note: string | null;
+  roundLabel: string | null;
+  tableNumber: string | null;
+  createdAt: string;
+}
+
 export const ANNOUNCEMENT_TONES: AnnouncementTone[] = [
   "info",
   "success",
@@ -101,6 +213,70 @@ export const JUDGE_CALL_PRIORITIES: JudgeCallPriority[] = [
   "urgent",
 ];
 
+export const PLAYER_REQUEST_TYPES: PlayerRequestType[] = [
+  "lost_item",
+  "water",
+  "accessibility",
+  "drop",
+  "help",
+];
+
+export const PLAYER_REQUEST_STATUSES: PlayerRequestStatus[] = [
+  "open",
+  "acknowledged",
+  "resolved",
+];
+
+export const STAFF_ROLES: StaffRole[] = [
+  "head_judge",
+  "floor_judge",
+  "scorekeeper",
+  "coverage",
+  "runner",
+  "TO",
+];
+
+export const STAFF_ASSIGNMENT_STATUSES: StaffAssignmentStatus[] = [
+  "active",
+  "break",
+  "offline",
+];
+
+export const INCIDENT_CATEGORIES: IncidentCategory[] = [
+  "penalty",
+  "appeal",
+  "slow_play",
+  "deck_issue",
+  "conduct",
+  "other",
+];
+
+export const INCIDENT_SEVERITIES: IncidentSeverity[] = [
+  "note",
+  "warning",
+  "game_loss",
+  "match_loss",
+  "disqualification",
+];
+
+export const INCIDENT_STATUSES: IncidentStatus[] = ["open", "closed"];
+
+export const BROADCAST_SEGMENTS: BroadcastSegment[] = [
+  "pre_round",
+  "round",
+  "break",
+  "top_cut",
+  "finals",
+  "sponsor",
+  "custom",
+];
+
+export const BROADCAST_RUNBOOK_STATUSES: BroadcastRunbookStatus[] = [
+  "queued",
+  "live",
+  "done",
+];
+
 export function normalizeTone(value: unknown): AnnouncementTone {
   return ANNOUNCEMENT_TONES.includes(value as AnnouncementTone)
     ? (value as AnnouncementTone)
@@ -129,6 +305,62 @@ export function normalizeJudgePriority(value: unknown): JudgeCallPriority {
   return JUDGE_CALL_PRIORITIES.includes(value as JudgeCallPriority)
     ? (value as JudgeCallPriority)
     : "normal";
+}
+
+export function normalizePlayerRequestType(value: unknown): PlayerRequestType {
+  return PLAYER_REQUEST_TYPES.includes(value as PlayerRequestType)
+    ? (value as PlayerRequestType)
+    : "help";
+}
+
+export function normalizePlayerRequestStatus(value: unknown): PlayerRequestStatus {
+  return PLAYER_REQUEST_STATUSES.includes(value as PlayerRequestStatus)
+    ? (value as PlayerRequestStatus)
+    : "open";
+}
+
+export function normalizeStaffRole(value: unknown): StaffRole {
+  return STAFF_ROLES.includes(value as StaffRole) ? (value as StaffRole) : "floor_judge";
+}
+
+export function normalizeStaffAssignmentStatus(
+  value: unknown
+): StaffAssignmentStatus {
+  return STAFF_ASSIGNMENT_STATUSES.includes(value as StaffAssignmentStatus)
+    ? (value as StaffAssignmentStatus)
+    : "active";
+}
+
+export function normalizeIncidentCategory(value: unknown): IncidentCategory {
+  return INCIDENT_CATEGORIES.includes(value as IncidentCategory)
+    ? (value as IncidentCategory)
+    : "other";
+}
+
+export function normalizeIncidentSeverity(value: unknown): IncidentSeverity {
+  return INCIDENT_SEVERITIES.includes(value as IncidentSeverity)
+    ? (value as IncidentSeverity)
+    : "note";
+}
+
+export function normalizeIncidentStatus(value: unknown): IncidentStatus {
+  return INCIDENT_STATUSES.includes(value as IncidentStatus)
+    ? (value as IncidentStatus)
+    : "open";
+}
+
+export function normalizeBroadcastSegment(value: unknown): BroadcastSegment {
+  return BROADCAST_SEGMENTS.includes(value as BroadcastSegment)
+    ? (value as BroadcastSegment)
+    : "round";
+}
+
+export function normalizeBroadcastRunbookStatus(
+  value: unknown
+): BroadcastRunbookStatus {
+  return BROADCAST_RUNBOOK_STATUSES.includes(value as BroadcastRunbookStatus)
+    ? (value as BroadcastRunbookStatus)
+    : "queued";
 }
 
 export function normalizeFloorMapZones(value: unknown): FloorMapZone[] {
