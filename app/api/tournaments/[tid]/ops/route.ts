@@ -231,6 +231,7 @@ export async function GET(
         overlays: `/overlay/${tid}`,
         venue: `/venue/${tid}`,
         analytics: `/analytics/${tid}`,
+        judge: `/judge/${tid}`,
         producer: `/producer/${tid}`,
         recap: `/recap/${tid}`,
       },

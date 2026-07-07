@@ -2290,6 +2290,327 @@ body:has(.venue-layout-body) {
   letter-spacing: 0.08em;
 }
 
+/* ─── Judge console ─────────────────────────────────────────────────────── */
+
+.judge-page {
+  min-height: 100vh;
+  background:
+    linear-gradient(135deg, rgba(34, 197, 94, 0.08), transparent 26rem),
+    var(--color-bg-primary);
+  color: var(--color-text-primary);
+  padding: 1rem;
+}
+
+.judge-header {
+  width: min(100%, 82rem);
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.judge-header h1 {
+  color: var(--color-text-primary);
+  font-size: clamp(1.55rem, 4vw, 2.5rem);
+  font-weight: 950;
+  line-height: 1.05;
+  margin-top: 0.2rem;
+}
+
+.judge-header p,
+.judge-panel-header p,
+.judge-card-english,
+.judge-card-type {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
+}
+
+.judge-header nav,
+.judge-resource-links,
+.judge-sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.judge-header nav a,
+.judge-resource-links a,
+.judge-sample-row button {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-card);
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 0.35rem 0.7rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.judge-header nav a:hover,
+.judge-resource-links a:hover,
+.judge-sample-row button:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.judge-grid {
+  width: min(100%, 82rem);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(21rem, 0.42fr) minmax(0, 0.58fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.judge-panel {
+  min-width: 0;
+}
+
+.judge-card-panel {
+  grid-row: span 2;
+}
+
+.judge-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.judge-kicker {
+  color: var(--color-accent-light);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.judge-panel-header h2,
+.judge-rulings-list h3 {
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  font-weight: 900;
+  margin-top: 0.15rem;
+}
+
+.judge-call-stack {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.judge-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.judge-search-row input,
+.judge-rule-search {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-radius: 0.5rem;
+  padding: 0.62rem 0.7rem;
+  font-size: 0.84rem;
+}
+
+.judge-search-row button {
+  border: 1px solid rgba(34, 197, 94, 0.42);
+  border-radius: 0.5rem;
+  background: rgba(34, 197, 94, 0.12);
+  color: #bbf7d0;
+  padding: 0.62rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.judge-search-row button:disabled {
+  opacity: 0.52;
+  cursor: wait;
+}
+
+.judge-sample-row {
+  justify-content: flex-start;
+  margin-top: 0.55rem;
+}
+
+.judge-error {
+  color: #fecaca;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-top: 0.7rem;
+}
+
+.judge-card-result {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.judge-card-image-wrap img {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid var(--color-border);
+  background: #05070d;
+}
+
+.judge-card-details h3 {
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
+  font-weight: 950;
+  line-height: 1.1;
+  margin-top: 0.2rem;
+}
+
+.judge-card-meta,
+.judge-legality-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.judge-card-meta span,
+.judge-legality-grid span {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+  padding: 0.18rem 0.48rem;
+  text-transform: capitalize;
+}
+
+.judge-legality-grid .legal {
+  border-color: rgba(34, 197, 94, 0.42);
+  color: #bbf7d0;
+}
+
+.judge-legality-grid .blocked {
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #fecaca;
+}
+
+.judge-legality-grid .restricted {
+  border-color: rgba(245, 158, 11, 0.45);
+  color: var(--color-gold);
+}
+
+.judge-oracle-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.judge-oracle-face,
+.judge-rulings-list article,
+.judge-rule-topic {
+  border: 1px solid var(--color-border);
+  border-radius: 0.55rem;
+  background: var(--color-bg-secondary);
+  padding: 0.75rem;
+}
+
+.judge-oracle-face strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 0.82rem;
+}
+
+.judge-oracle-face span,
+.judge-rulings-list span,
+.judge-rule-topic span {
+  color: var(--color-accent-light);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.judge-oracle-face p,
+.judge-rulings-list p,
+.judge-rule-topic p {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  margin-top: 0.4rem;
+}
+
+.judge-resource-links {
+  justify-content: flex-start;
+  margin-top: 0.85rem;
+}
+
+.judge-resource-links.compact {
+  margin-top: 0.7rem;
+}
+
+.judge-rulings-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.judge-rulings-list h3 {
+  margin-top: 0.4rem;
+}
+
+.judge-rule-search {
+  margin-bottom: 0.75rem;
+}
+
+.judge-rule-topic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.judge-rule-topic strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 0.86rem;
+  margin-top: 0.2rem;
+}
+
+@media (max-width: 980px) {
+  .judge-header,
+  .judge-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .judge-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .judge-card-panel {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .judge-card-result,
+  .judge-search-row,
+  .judge-rule-topic-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .judge-card-image-wrap {
+    max-width: 14rem;
+  }
+}
+
 .recap-winner-card strong {
   display: block;
   color: var(--color-text-primary);

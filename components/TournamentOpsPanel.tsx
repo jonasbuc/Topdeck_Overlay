@@ -94,6 +94,7 @@ interface OpsHealth {
     overlays: string;
     venue: string;
     analytics: string;
+    judge: string;
     producer: string;
     recap: string;
   };
@@ -343,6 +344,7 @@ export function TournamentOpsPanel({ tid }: { tid: string }) {
 
           <div className="ops-links">
             <Link href={health.links.player} target="_blank">Player page</Link>
+            <Link href={health.links.judge}>Judge console</Link>
             <Link href={health.links.overlays} target="_blank">Overlays</Link>
             <Link href={health.links.venue} target="_blank">Venue display</Link>
             <Link href={health.links.producer} target="_blank">Producer mode</Link>

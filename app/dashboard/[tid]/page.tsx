@@ -89,6 +89,10 @@ export default function DashboardPage({ params }: Props) {
               Analytics
             </Link>
 
+            <Link href={`/judge/${tid}`} className="obs-link">
+              Judge
+            </Link>
+
             <Link href={`/producer/${tid}`} className="obs-link">
               Producer
             </Link>
@@ -142,6 +146,7 @@ export default function DashboardPage({ params }: Props) {
                 { name: "Results ticker (1920×64)", path: `/overlay/${tid}/ticker` },
                 { name: "Venue display (fullscreen)", path: `/venue/${tid}` },
                 { name: "Player companion page", path: `/event/${tid}` },
+                { name: "Judge console", path: `/judge/${tid}` },
                 { name: "Producer mode", path: `/producer/${tid}` },
                 { name: "Event recap", path: `/recap/${tid}` },
               ].map((o) => (

@@ -21,6 +21,7 @@ function isProtectedWrite(req: NextRequest): boolean {
 function isProtectedPage(pathname: string): boolean {
   return (
     pathname.startsWith("/dashboard/") ||
+    pathname.startsWith("/judge/") ||
     pathname.startsWith("/producer/")
   );
 }

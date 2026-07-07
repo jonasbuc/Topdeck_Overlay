@@ -17,6 +17,7 @@ Receives signed [TopDeck.gg](https://topdeck.gg) webhooks and turns them into li
 - **Player PWA** — installable player companion with service-worker offline fallback
 - **Event-day Control Center** — readiness checklist for webhook health, TopDeck sync, Discord setup, announcements, judge queue, floor map, parking, and public links
 - **Event-day operations** — announcements, QR sharing, Judge Queue V2, and table/floor map for players and venue displays
+- **Judge console** at `/judge/[tid]` — dedicated judge workspace with live calls, card lookup, official rulings, legalities, and rules references
 - **Producer mode** at `/producer/[tid]` — stream control surface with overlay preview, source links, feature-table controls, and venue announcements
 - **Event recap** at `/recap/[tid]` — public post-event summary with champion, standings, and round history
 - **OBS browser-source overlays** — transparent background, 1920×1080 optimized
@@ -59,9 +60,11 @@ topdeck-live/
 │   │   ├── live/[tid]/route.ts             ← SSE stream per tournament
 │   │   ├── tournaments/[tid]/route.ts      ← REST state snapshot
 │   │   ├── tournaments/[tid]/parking/      ← Parking API (geocode + cache + provider)
+│   │   ├── judge/cards/route.ts            ← Scryfall card + rulings proxy
 │   │   └── discord/interactions/route.ts  ← Discord slash-command interaction handler
 │   ├── dashboard/[tid]/page.tsx            ← Live coverage dashboard (incl. parking)
 │   ├── event/[tid]/page.tsx                ← Public mobile player companion page
+│   ├── judge/[tid]/page.tsx                ← Judge console for live calls + card/rules lookup
 │   ├── producer/[tid]/page.tsx             ← Stream producer control panel
 │   ├── recap/[tid]/page.tsx                ← Public event recap
 │   ├── manifest.ts                         ← PWA manifest
@@ -80,6 +83,7 @@ topdeck-live/
 │   ├── EventCompanion.tsx                  ← Public player-facing event UI
 │   ├── EventOperationsPanel.tsx            ← Announcements, QR, judge queue, floor map admin
 │   ├── EventOpsPublic.tsx                  ← Public announcements, judge call, floor map widgets
+│   ├── JudgeConsole.tsx                    ← Dedicated judge workspace
 │   ├── ProducerMode.tsx                    ← Stream producer controls + overlay preview
 │   ├── TournamentOpsPanel.tsx              ← Dashboard integration health panel
 │   ├── DiscordSetupWizard.tsx              ← Dashboard Discord setup flow
@@ -180,6 +184,7 @@ The dashboard includes organizer tools that make the overlay useful beyond strea
 | Announcements | Dashboard composer; player page banner; venue display overlay; optional Discord post |
 | QR / share | Dashboard QR code and share/copy actions for `/event/[tid]` |
 | Judge Queue V2 | Player page request form with categories; dashboard triage queue with priority, assignee, internal notes, status history |
+| Judge console | `/judge/[tid]` live call queue, Scryfall card lookup, oracle/rulings, Commander legality, and official rules/policy links |
 | Table / floor map | Dashboard editor; player page highlighted "find my table" zone; venue display rotation |
 | Event hub | Discord `/topdeck event` command posts player links for the whole event |
 | Producer mode | `/producer/[tid]` preview/control panel for stream operators |
@@ -195,7 +200,7 @@ Discord setup also supports `/topdeck setup [tid]`, which links a channel when a
 
 ### Admin protection
 
-Set `TOPDECK_ADMIN_TOKEN` to protect dashboard/producer pages and mutating tournament APIs. When configured, pass it once as `?admin=<token>`; the app stores a secure `topdeck_admin` cookie for later requests. Public player pages and public judge-call submission remain open.
+Set `TOPDECK_ADMIN_TOKEN` to protect dashboard/judge/producer pages and mutating tournament APIs. When configured, pass it once as `?admin=<token>`; the app stores a secure `topdeck_admin` cookie for later requests. Public player pages and public judge-call submission remain open.
 
 ---
 
