@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTournamentLive } from "@/hooks/useTournamentLive";
+import { IncidentLogPanel } from "@/components/EventOpsAdvanced";
+import {
+  RoleExperienceShell,
+  RoleWorkflowSection,
+  useRolePreferences,
+  type RoleAlert,
+  type RoleCommandAction,
+  type RoleStatusCard,
+  type RoleWorkflowTab,
+} from "@/components/RoleExperienceShell";
 import type {
   JudgeCallCategory,
   JudgeCallDTO,
@@ -182,6 +192,14 @@ function legalityClass(value: string | undefined): string {
 
 export function JudgeConsole({ tid }: Props) {
   const { state, connected, error } = useTournamentLive(tid);
+  const {
+    activeTab: judgeActiveTab,
+    viewMode: judgeViewMode,
+    density: judgeDensity,
+    setActiveTab: setJudgeActiveTab,
+    setViewMode: setJudgeViewMode,
+    setDensity: setJudgeDensity,
+  } = useRolePreferences(`topdeck-live:${tid}:judge-ux`, "queue");
   const [calls, setCalls] = useState<JudgeCallDTO[]>([]);
   const [includeResolved, setIncludeResolved] = useState(false);
   const [cardQuery, setCardQuery] = useState("");
@@ -189,6 +207,9 @@ export function JudgeConsole({ tid }: Props) {
   const [cardMessage, setCardMessage] = useState<string | null>(null);
   const [cardLoading, setCardLoading] = useState(false);
   const [rulesQuery, setRulesQuery] = useState("");
+  const [autoOpenedJudgeAlert, setAutoOpenedJudgeAlert] = useState<string | null>(
+    null
+  );
 
   const loadCalls = useCallback(() => {
     fetch(`/api/tournaments/${tid}/judge-calls${includeResolved ? "?all=true" : ""}`)
@@ -234,6 +255,13 @@ export function JudgeConsole({ tid }: Props) {
 
   const unresolved = calls.filter((call) => call.status !== "resolved");
   const urgent = unresolved.filter((call) => call.priority === "urgent");
+
+  useEffect(() => {
+    const urgentId = urgent[0]?.id ?? null;
+    if (!urgentId || urgentId === autoOpenedJudgeAlert) return;
+    setJudgeActiveTab("queue");
+    setAutoOpenedJudgeAlert(urgentId);
+  }, [autoOpenedJudgeAlert, setJudgeActiveTab, urgent]);
 
   const filteredRules = useMemo(() => {
     const needle = rulesQuery.trim().toLowerCase();
@@ -283,9 +311,178 @@ export function JudgeConsole({ tid }: Props) {
           },
         ]
       : [];
+  const judgeTabs: RoleWorkflowTab[] = [
+    {
+      id: "queue",
+      label: "Queue",
+      detail: `${unresolved.length} active`,
+      badge: urgent.length || undefined,
+      tone: urgent.length > 0 ? "danger" : unresolved.length > 0 ? "warning" : "good",
+    },
+    {
+      id: "card-lookup",
+      label: "Card Lookup",
+      detail: card ? card.name : "Oracle search",
+      tone: card ? "good" : "neutral",
+    },
+    {
+      id: "rules",
+      label: "Rules",
+      detail: `${filteredRules.length} topics`,
+      tone: "neutral",
+    },
+    {
+      id: "incidents",
+      label: "Incidents",
+      detail: "Private log",
+      tone: "neutral",
+    },
+  ];
+  const judgeStatusCards: RoleStatusCard[] = [
+    {
+      id: "round",
+      label: "Round",
+      value: state?.roundLabel || "No round",
+      detail: state?.roundStatus ?? "Loading",
+      tone: state?.roundStatus === "active" ? "live" : "neutral",
+    },
+    {
+      id: "calls",
+      label: "Judge Calls",
+      value: `${unresolved.length} active`,
+      detail: `${urgent.length} urgent · ${calls.length} visible`,
+      tone: urgent.length > 0 ? "danger" : unresolved.length > 0 ? "warning" : "good",
+      href: "#judge-queue",
+      onSelect: () => setJudgeActiveTab("queue"),
+    },
+    {
+      id: "next",
+      label: "Next Action",
+      value:
+        urgent[0]?.tableNumber != null
+          ? `Table ${urgent[0].tableNumber}`
+          : unresolved[0]?.tableNumber != null
+          ? `Table ${unresolved[0].tableNumber}`
+          : unresolved.length > 0
+          ? "Assign call"
+          : "Monitor",
+      detail:
+        urgent[0]?.message ??
+        unresolved[0]?.message ??
+        "Queue is clear; card and rules tools are ready.",
+      tone: urgent.length > 0 ? "danger" : unresolved.length > 0 ? "warning" : "good",
+      href: "#judge-queue",
+      onSelect: () => setJudgeActiveTab("queue"),
+    },
+    {
+      id: "card",
+      label: "Card Tool",
+      value: card ? card.name : "Ready",
+      detail: card ? `${card.lang.toUpperCase()} · ${card.rarity ?? "unknown"}` : "Foreign print lookup",
+      tone: card ? "good" : "neutral",
+      href: "#judge-card",
+      onSelect: () => setJudgeActiveTab("card-lookup"),
+    },
+    {
+      id: "quick",
+      label: "Quick Action",
+      value: urgent.length > 0 ? "Ack urgent" : "Search card",
+      detail: urgent.length > 0 ? "Open queue first" : "Oracle, legalities, rulings",
+      tone: urgent.length > 0 ? "danger" : "neutral",
+      href: urgent.length > 0 ? "#judge-queue" : "#judge-card",
+      onSelect: () => setJudgeActiveTab(urgent.length > 0 ? "queue" : "card-lookup"),
+    },
+  ];
+  const judgeAlerts: RoleAlert[] = urgent.slice(0, 3).map((call) => ({
+    id: call.id,
+    label: call.tableNumber ? `Urgent call at table ${call.tableNumber}` : "Urgent judge call",
+    detail: `${CATEGORY_LABELS[call.category]} · waiting ${formatWait(call.createdAt)}`,
+    tone: "danger",
+    href: "#judge-queue",
+    onSelect: () => setJudgeActiveTab("queue"),
+  }));
+  const judgeActions: RoleCommandAction[] = [
+    {
+      id: "queue",
+      label: "Open judge queue",
+      detail: `${unresolved.length} active calls`,
+      href: "#judge-queue",
+      keywords: ["calls", "ack", "resolve"],
+      onSelect: () => setJudgeActiveTab("queue"),
+    },
+    {
+      id: "card-lookup",
+      label: "Card lookup",
+      detail: "Foreign prints, Oracle, rulings",
+      href: "#judge-card",
+      keywords: ["scryfall", "oracle", "legalities"],
+      onSelect: () => setJudgeActiveTab("card-lookup"),
+    },
+    {
+      id: "rules",
+      label: "Rules references",
+      detail: "CR, MTR, IPG topics",
+      href: "#judge-rules",
+      keywords: ["policy", "trigger", "layers", "shortcut"],
+      onSelect: () => setJudgeActiveTab("rules"),
+    },
+    {
+      id: "incidents",
+      label: "Log ruling",
+      detail: "Penalty, appeal, slow play note",
+      href: "#judge-incidents",
+      keywords: ["incident", "penalty", "appeal"],
+      onSelect: () => setJudgeActiveTab("incidents"),
+    },
+    {
+      id: "player-page",
+      label: "Player page",
+      detail: "Open public event page",
+      href: `/event/${tid}`,
+    },
+    {
+      id: "to",
+      label: "TO page",
+      detail: "Operations command center",
+      href: `/to/${tid}`,
+    },
+  ];
+  const judgeMobileActions: RoleCommandAction[] = [
+    {
+      id: "mobile-queue",
+      label: "Queue",
+      href: "#judge-queue",
+      tone: urgent.length > 0 ? "danger" : "neutral",
+      onSelect: () => setJudgeActiveTab("queue"),
+    },
+    {
+      id: "mobile-card",
+      label: "Card",
+      href: "#judge-card",
+      onSelect: () => setJudgeActiveTab("card-lookup"),
+    },
+    {
+      id: "mobile-rules",
+      label: "Rules",
+      href: "#judge-rules",
+      onSelect: () => setJudgeActiveTab("rules"),
+    },
+    {
+      id: "mobile-log",
+      label: "Log",
+      href: "#judge-incidents",
+      onSelect: () => setJudgeActiveTab("incidents"),
+    },
+  ];
 
   return (
-    <div className="judge-page">
+    <div
+      className={[
+        "judge-page",
+        `role-mode-${judgeViewMode}`,
+        `role-density-${judgeDensity}`,
+      ].join(" ")}
+    >
       <header className="judge-header">
         <div>
           <span className="judge-kicker">Judge Console</span>
@@ -306,8 +503,43 @@ export function JudgeConsole({ tid }: Props) {
         </nav>
       </header>
 
+      <RoleExperienceShell
+        role="Judge"
+        title={
+          urgent.length > 0
+            ? `${urgent.length} urgent call${urgent.length === 1 ? "" : "s"}`
+            : unresolved.length > 0
+            ? `${unresolved.length} active call${unresolved.length === 1 ? "" : "s"}`
+            : "Queue clear"
+        }
+        subtitle={
+          urgent[0]?.message ??
+          unresolved[0]?.message ??
+          "Card lookup, rules references and incident log are ready."
+        }
+        statusCards={judgeStatusCards}
+        tabs={judgeTabs}
+        activeTab={judgeActiveTab}
+        viewMode={judgeViewMode}
+        density={judgeDensity}
+        onTabChange={setJudgeActiveTab}
+        onViewModeChange={setJudgeViewMode}
+        onDensityChange={setJudgeDensity}
+        actions={judgeActions}
+        alerts={judgeAlerts}
+        mobileActions={judgeMobileActions}
+        className="judge-role-shell"
+      />
+
       <main className="judge-grid">
-        <section className="card judge-panel judge-queue-panel">
+        <RoleWorkflowSection
+          id="judge-queue"
+          tabId="queue"
+          activeTab={judgeActiveTab}
+          viewMode={judgeViewMode}
+          className="judge-flow-queue"
+        >
+          <section className="card judge-panel judge-queue-panel">
           <div className="judge-panel-header">
             <div>
               <span className="judge-kicker">Live Calls</span>
@@ -437,9 +669,17 @@ export function JudgeConsole({ tid }: Props) {
               </article>
             ))}
           </div>
-        </section>
+          </section>
+        </RoleWorkflowSection>
 
-        <section className="card judge-panel judge-card-panel">
+        <RoleWorkflowSection
+          id="judge-card"
+          tabId="card-lookup"
+          activeTab={judgeActiveTab}
+          viewMode={judgeViewMode}
+          className="judge-flow-card"
+        >
+          <section className="card judge-panel judge-card-panel">
           <div className="judge-panel-header">
             <div>
               <span className="judge-kicker">Card Reference</span>
@@ -555,9 +795,17 @@ export function JudgeConsole({ tid }: Props) {
               </div>
             </div>
           )}
-        </section>
+          </section>
+        </RoleWorkflowSection>
 
-        <section className="card judge-panel judge-rules-panel">
+        <RoleWorkflowSection
+          id="judge-rules"
+          tabId="rules"
+          activeTab={judgeActiveTab}
+          viewMode={judgeViewMode}
+          className="judge-flow-rules"
+        >
+          <section className="card judge-panel judge-rules-panel">
           <div className="judge-panel-header">
             <div>
               <span className="judge-kicker">Rules Toolkit</span>
@@ -601,7 +849,18 @@ export function JudgeConsole({ tid }: Props) {
               Scryfall Advanced
             </a>
           </div>
-        </section>
+          </section>
+        </RoleWorkflowSection>
+
+        <RoleWorkflowSection
+          id="judge-incidents"
+          tabId="incidents"
+          activeTab={judgeActiveTab}
+          viewMode={judgeViewMode}
+          className="judge-flow-incidents"
+        >
+          <IncidentLogPanel tid={tid} />
+        </RoleWorkflowSection>
       </main>
     </div>
   );

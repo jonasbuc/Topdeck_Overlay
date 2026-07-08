@@ -124,7 +124,7 @@ export function EventOpsAdvancedSuite({ tid }: Props) {
   );
 }
 
-function PlayerRequestsPanel({ tid }: Props) {
+export function PlayerRequestsPanel({ tid }: Props) {
   const [requests, setRequests] = useState<PlayerRequestDTO[]>([]);
   const [includeResolved, setIncludeResolved] = useState(false);
 
@@ -241,7 +241,7 @@ function PlayerRequestsPanel({ tid }: Props) {
   );
 }
 
-function StaffRolesPanel({ tid }: Props) {
+export function StaffRolesPanel({ tid }: Props) {
   const [assignments, setAssignments] = useState<StaffAssignmentDTO[]>([]);
   const [staffName, setStaffName] = useState("");
   const [role, setRole] = useState<StaffRole>("floor_judge");
@@ -358,7 +358,7 @@ function StaffRolesPanel({ tid }: Props) {
   );
 }
 
-function IncidentLogPanel({ tid }: Props) {
+export function IncidentLogPanel({ tid }: Props) {
   const [incidents, setIncidents] = useState<IncidentLogDTO[]>([]);
   const [includeClosed, setIncludeClosed] = useState(false);
   const [playerName, setPlayerName] = useState("");
@@ -709,7 +709,7 @@ export function BroadcastRunbookPanel({ tid }: Props) {
   );
 }
 
-function EmergencyToolsPanel({ tid }: Props) {
+export function EmergencyToolsPanel({ tid }: Props) {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
 

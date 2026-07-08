@@ -11,6 +11,16 @@ import {
   PlayerJudgeCallForm,
   PublicFloorMap,
 } from "@/components/EventOpsPublic";
+import {
+  RoleExperienceShell,
+  RoleWorkflowSection,
+  useRolePreferences,
+  type RoleAlert,
+  type RoleCommandAction,
+  type RoleStatusCard,
+  type RoleTone,
+  type RoleWorkflowTab,
+} from "@/components/RoleExperienceShell";
 import type {
   LiveTournamentState,
   TopDeckPlayer,
@@ -589,6 +599,14 @@ function EventTableCard({
 
 export function EventCompanion({ tid }: Props) {
   const { state, connected, error } = useTournamentLive(tid);
+  const {
+    activeTab: playerActiveTab,
+    viewMode: playerViewMode,
+    density: playerDensity,
+    setActiveTab: setPlayerActiveTab,
+    setViewMode: setPlayerViewMode,
+    setDensity: setPlayerDensity,
+  } = useRolePreferences(`topdeck-live:${tid}:player-ux`, "my-round");
   const [query, setQuery] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState<TableStatusFilter>("all");
@@ -598,6 +616,9 @@ export function EventCompanion({ tid }: Props) {
   const [playerRequests, setPlayerRequests] = useState<PlayerRequestDTO[]>([]);
   const [localResult, setLocalResult] = useState<LocalResult>(null);
   const [accessibilityView, setAccessibilityView] = useState(false);
+  const [autoOpenedPlayerAlert, setAutoOpenedPlayerAlert] = useState<string | null>(
+    null
+  );
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
 
@@ -733,6 +754,18 @@ export function EventCompanion({ tid }: Props) {
     ? commanderNamesForTable(state, selectedTable)
     : [];
 
+  useEffect(() => {
+    const alertId = activeJudgeCall?.id ?? activePlayerRequest?.id ?? null;
+    if (!alertId || alertId === autoOpenedPlayerAlert) return;
+    setPlayerActiveTab("help");
+    setAutoOpenedPlayerAlert(alertId);
+  }, [
+    activeJudgeCall?.id,
+    activePlayerRequest?.id,
+    autoOpenedPlayerAlert,
+    setPlayerActiveTab,
+  ]);
+
   const selectPlayer = (player: PlayerOption) => {
     setSelectedPlayerId(player.id);
     setQuery(player.name);
@@ -791,9 +824,259 @@ export function EventCompanion({ tid }: Props) {
   const completedCount = state.tables.filter((table) => table.status === "Completed").length;
   const activeCount = state.tables.filter((table) => table.status === "Active").length;
   const pendingCount = state.tables.filter((table) => table.status === "Pending").length;
+  const playerNextAction = nextPlayerAction(
+    state,
+    selectedPlayer,
+    selectedTable,
+    activeJudgeCall
+  );
+  const playerActionTone: RoleTone =
+    playerNextAction.tone === "ready"
+      ? "good"
+      : playerNextAction.tone === "urgent"
+      ? "danger"
+      : "warning";
+  const playerTabs: RoleWorkflowTab[] = [
+    {
+      id: "my-round",
+      label: "My Round",
+      detail: selectedTable
+        ? selectedTable.table === "Byes"
+          ? "Bye"
+          : `Table ${selectedTable.table}`
+        : "Find player",
+      tone: selectedTable ? "good" : "warning",
+    },
+    {
+      id: "pairings",
+      label: "Pairings",
+      detail: `${activeCount} active`,
+      badge: state.tables.length,
+      tone: pendingCount > 0 ? "warning" : "neutral",
+    },
+    {
+      id: "help",
+      label: "Help",
+      detail: activeJudgeCall || activePlayerRequest ? "Open request" : "Clear",
+      badge:
+        (activeJudgeCall ? 1 : 0) + (activePlayerRequest ? 1 : 0) || undefined,
+      tone: activeJudgeCall?.priority === "urgent" ? "danger" : "neutral",
+    },
+    {
+      id: "venue",
+      label: "Venue",
+      detail: state.location ? "Map and parking" : "Map",
+      tone: "neutral",
+    },
+  ];
+  const playerStatusCards: RoleStatusCard[] = [
+    {
+      id: "round",
+      label: "Round",
+      value: formatRoundLabel(state),
+      detail: state.roundStatus,
+      tone: state.roundStatus === "active" ? "live" : "neutral",
+      href: "#my-round",
+      onSelect: () => setPlayerActiveTab("my-round"),
+    },
+    {
+      id: "table",
+      label: "My Table",
+      value: selectedTable
+        ? selectedTable.table === "Byes"
+          ? "Bye"
+          : `Table ${selectedTable.table}`
+        : "-",
+      detail: opponentNames(selectedTable, selectedPlayer),
+      tone: selectedTable ? "good" : "warning",
+      href: "#player",
+      onSelect: () => setPlayerActiveTab("my-round"),
+    },
+    {
+      id: "next",
+      label: "Next Action",
+      value: playerNextAction.label,
+      detail: playerNextAction.detail,
+      tone: playerActionTone,
+      href: playerNextAction.tone === "urgent" ? "#judge" : "#my-round",
+      onSelect: () =>
+        setPlayerActiveTab(playerNextAction.tone === "urgent" ? "help" : "my-round"),
+    },
+    {
+      id: "help",
+      label: "Requests",
+      value:
+        activeJudgeCall || activePlayerRequest
+          ? activeJudgeCall?.status ?? activePlayerRequest?.status ?? "Open"
+          : "Clear",
+      detail:
+        activeJudgeCall?.category ??
+        activePlayerRequest?.type ??
+        "No judge or help request",
+      tone: activeJudgeCall?.priority === "urgent" ? "danger" : "neutral",
+      href: "#judge",
+      onSelect: () => setPlayerActiveTab("help"),
+    },
+    {
+      id: "quick",
+      label: "Quick Action",
+      value: selectedPlayer ? "Call judge" : "Find player",
+      detail: selectedPlayer
+        ? selectedTable
+          ? "Table is prefilled"
+          : "Player is prefilled"
+        : "Search once",
+      tone: selectedPlayer ? "neutral" : "warning",
+      href: selectedPlayer ? "#judge" : "#player",
+      onSelect: () => setPlayerActiveTab(selectedPlayer ? "help" : "my-round"),
+    },
+  ];
+  const playerAlerts: RoleAlert[] = [
+    ...(activeJudgeCall
+      ? [
+          {
+            id: `judge-${activeJudgeCall.id}`,
+            label:
+              activeJudgeCall.status === "acknowledged"
+                ? "Judge acknowledged"
+                : "Judge request open",
+            detail: `${activeJudgeCall.priority} · ${activeJudgeCall.category}`,
+            tone: activeJudgeCall.priority === "urgent" ? "danger" : "warning",
+            href: "#judge",
+            onSelect: () => setPlayerActiveTab("help"),
+          } satisfies RoleAlert,
+        ]
+      : []),
+    ...(activePlayerRequest
+      ? [
+          {
+            id: `request-${activePlayerRequest.id}`,
+            label: "Help request open",
+            detail: `${activePlayerRequest.type} · ${activePlayerRequest.status}`,
+            tone: activePlayerRequest.priority === "urgent" ? "danger" : "warning",
+            href: "#help-desk",
+            onSelect: () => setPlayerActiveTab("help"),
+          } satisfies RoleAlert,
+        ]
+      : []),
+  ];
+  const playerActions: RoleCommandAction[] = [
+    {
+      id: "find-player",
+      label: "Find player",
+      detail: "Search player profile",
+      href: "#player",
+      keywords: ["search", "profile", "standing"],
+      onSelect: () => setPlayerActiveTab("my-round"),
+    },
+    {
+      id: "my-table",
+      label: "My table",
+      detail: selectedTable ? opponentNames(selectedTable, selectedPlayer) : "Select player",
+      href: "#player",
+      keywords: ["opponent", "round"],
+      onSelect: () => setPlayerActiveTab("my-round"),
+    },
+    {
+      id: "pairings",
+      label: "Pairings",
+      detail: `${state.tables.length} tables`,
+      href: "#pairings-list",
+      keywords: ["tables", "matches"],
+      onSelect: () => setPlayerActiveTab("pairings"),
+    },
+    {
+      id: "standings",
+      label: "Standings",
+      detail: "Live rank and points",
+      href: "#standings",
+      keywords: ["rank", "points"],
+      onSelect: () => setPlayerActiveTab("pairings"),
+    },
+    {
+      id: "call-judge",
+      label: "Call judge",
+      detail: selectedTable ? "Table is prefilled" : "Rules or logistics",
+      href: "#judge",
+      keywords: ["rules", "request"],
+      tone: activeJudgeCall?.priority === "urgent" ? "danger" : "neutral",
+      onSelect: () => setPlayerActiveTab("help"),
+    },
+    {
+      id: "help-desk",
+      label: "Help desk",
+      detail: "Water, lost item, accessibility, drop",
+      href: "#help-desk",
+      keywords: ["request", "lost", "water", "drop"],
+      onSelect: () => setPlayerActiveTab("help"),
+    },
+    {
+      id: "card-lookup",
+      label: "Commander lookup",
+      detail: "Oracle and rulings",
+      href: "#tools",
+      keywords: ["card", "oracle", "rules"],
+      onSelect: () => setPlayerActiveTab("help"),
+    },
+    {
+      id: "venue-map",
+      label: "Venue map",
+      detail: state.location ? "Floor map and parking" : "Floor map",
+      href: "#floor-map",
+      keywords: ["parking", "table", "map"],
+      onSelect: () => setPlayerActiveTab("venue"),
+    },
+    ...(channelUrl
+      ? [
+          {
+            id: "discord",
+            label: "Discord",
+            detail: "Open event channel",
+            href: channelUrl,
+            keywords: ["chat"],
+          } satisfies RoleCommandAction,
+        ]
+      : []),
+  ];
+  const playerMobileActions: RoleCommandAction[] = [
+    {
+      id: "mobile-table",
+      label: "My table",
+      href: "#player",
+      onSelect: () => setPlayerActiveTab("my-round"),
+    },
+    {
+      id: "mobile-judge",
+      label: "Judge",
+      href: "#judge",
+      tone: activeJudgeCall?.priority === "urgent" ? "danger" : "neutral",
+      onSelect: () => setPlayerActiveTab("help"),
+    },
+    {
+      id: "mobile-help",
+      label: "Help",
+      href: "#help-desk",
+      onSelect: () => setPlayerActiveTab("help"),
+    },
+    {
+      id: "mobile-map",
+      label: "Map",
+      href: "#floor-map",
+      onSelect: () => setPlayerActiveTab("venue"),
+    },
+  ];
 
   return (
-    <div className={`event-page${accessibilityView ? " accessibility-view" : ""}`}>
+    <div
+      className={[
+        "event-page",
+        accessibilityView ? "accessibility-view" : "",
+        `role-mode-${playerViewMode}`,
+        `role-density-${playerDensity}`,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <header
         className={`event-hero ${state.headerImage ? "with-image" : ""}`}
         style={
@@ -844,322 +1127,266 @@ export function EventCompanion({ tid }: Props) {
       </header>
 
       <main className="event-shell">
-        <nav className="event-jump-nav" aria-label="Event sections">
-          <a href="#player">Player</a>
-          <a href="#judge">Judge</a>
-          <a href="#help-desk">Help</a>
-          <a href="#tools">Tools</a>
-          <a href="#reminders">Reminders</a>
-          <a href="#pairings">Pairings</a>
-          <a href="#standings">Standings</a>
-          <a href="#floor-map">Map</a>
-          {state.location && <a href="#parking">Parking</a>}
-        </nav>
-
         <EventAnnouncementBanner tid={tid} />
 
-        <section className="event-command-center">
-          <div className="event-command-main">
-            <span className="event-kicker">Player command center</span>
-            {(() => {
-              const action = nextPlayerAction(
-                state,
-                selectedPlayer,
-                selectedTable,
-                activeJudgeCall
-              );
-              return (
-                <>
-                  <h2>{action.label}</h2>
-                  <p>{action.detail}</p>
-                  <span className={`event-command-status ${action.tone}`}>
-                    {action.tone === "ready"
-                      ? "Ready"
-                      : action.tone === "urgent"
-                      ? "Priority"
-                      : "Watch"}
-                  </span>
-                </>
-              );
-            })()}
-          </div>
-          <div className="event-command-grid">
-            <div className="event-command-card">
-              <span>Table</span>
-              <strong>
-                {selectedTable
-                  ? selectedTable.table === "Byes"
-                    ? "Bye"
-                    : `Table ${selectedTable.table}`
-                  : "-"}
-              </strong>
-              <p>{opponentNames(selectedTable, selectedPlayer)}</p>
-            </div>
-            <div className="event-command-card">
-              <span>Standing</span>
-              <strong>
-                {selectedStanding ? `#${selectedStanding.standing}` : "-"}
-              </strong>
-              <p>{selectedStanding ? `${selectedStanding.points} points` : "Select player"}</p>
-            </div>
-            <div className="event-command-card">
-              <span>Result helper</span>
-              <strong>
-                {selectedTable ? getPlayerResult(selectedTable, selectedPlayer) : "-"}
-              </strong>
-              <p>{selectedTable?.status ?? "No table selected"}</p>
-            </div>
-            <div className="event-command-card">
-              <span>Judge status</span>
-              <strong>{activeJudgeCall ? activeJudgeCall.status : "Clear"}</strong>
-              <p>
-                {activeJudgeCall
-                  ? `${activeJudgeCall.priority} · ${activeJudgeCall.category}`
-                  : "No active request"}
-                </p>
-              </div>
-            <div className="event-command-card">
-              <span>Help desk</span>
-              <strong>{activePlayerRequest ? activePlayerRequest.status : "Clear"}</strong>
-              <p>
-                {activePlayerRequest
-                  ? `${activePlayerRequest.type} · ${activePlayerRequest.priority}`
-                  : "No open request"}
-              </p>
-            </div>
-          </div>
-          <div className="event-command-actions">
-            <a href="#player">Player</a>
-            <a href="#pairings">Pairings</a>
-            <a href="#standings">Standings</a>
-            <a href="#floor-map">Map</a>
-            <a href="#judge">Call judge</a>
-            <a href="#help-desk">Help desk</a>
-            <a href="#tools">Card lookup</a>
-            {channelUrl && (
-              <a href={channelUrl} target="_blank" rel="noreferrer">
-                Discord
-              </a>
-            )}
-            {selectedTable && (
-              <button type="button" onClick={() => handleCopyTable(selectedTable)}>
-                Copy table
-              </button>
-            )}
-          </div>
-        </section>
+        <RoleExperienceShell
+          role="Player"
+          title={playerNextAction.label}
+          subtitle={playerNextAction.detail}
+          statusCards={playerStatusCards}
+          tabs={playerTabs}
+          activeTab={playerActiveTab}
+          viewMode={playerViewMode}
+          density={playerDensity}
+          onTabChange={setPlayerActiveTab}
+          onViewModeChange={setPlayerViewMode}
+          onDensityChange={setPlayerDensity}
+          actions={playerActions}
+          alerts={playerAlerts}
+          mobileActions={playerMobileActions}
+        />
 
-        <section className="event-round-panel">
-          <div className="event-round-copy">
-            <span>{formatRoundLabel(state)}</span>
-            <strong>{state.roundStatus}</strong>
-          </div>
-          <RoundClock
-            startedAt={state.roundStartedAt}
-            roundTimeMinutes={state.roundTimeMinutes}
-            roundStatus={state.roundStatus}
-          />
-        </section>
-
-        {state.finished && (
-          <section className="event-panel event-winner-panel">
-            <span>Tournament complete</span>
-            <strong>{state.winner?.name ?? "Winner pending"}</strong>
-            <Link href={`/analytics/${tid}`}>Final stats</Link>
+        <RoleWorkflowSection
+          id="my-round"
+          tabId="my-round"
+          activeTab={playerActiveTab}
+          viewMode={playerViewMode}
+        >
+          <section className="event-round-panel">
+            <div className="event-round-copy">
+              <span>{formatRoundLabel(state)}</span>
+              <strong>{state.roundStatus}</strong>
+            </div>
+            <RoundClock
+              startedAt={state.roundStartedAt}
+              roundTimeMinutes={state.roundTimeMinutes}
+              roundStatus={state.roundStatus}
+            />
           </section>
-        )}
 
-        <section id="player" className="event-panel">
-          <div className="event-panel-header">
-            <h2>Find Player</h2>
+          {state.finished && (
+            <section className="event-panel event-winner-panel">
+              <span>Tournament complete</span>
+              <strong>{state.winner?.name ?? "Winner pending"}</strong>
+              <Link href={`/analytics/${tid}`}>Final stats</Link>
+            </section>
+          )}
+
+          <section id="player" className="event-panel">
+            <div className="event-panel-header">
+              <h2>Find Player</h2>
+              {selectedPlayer && (
+                <button type="button" className="event-ghost-btn" onClick={clearPlayer}>
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="event-search-row">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="event-search-input"
+                placeholder="Player name"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="event-player-matches">
+              {searchMatches.map((player) => (
+                <button
+                  key={player.id}
+                  type="button"
+                  className={`event-player-chip ${
+                    player.id === selectedPlayer?.id ? "selected" : ""
+                  }`}
+                  onClick={() => selectPlayer(player)}
+                >
+                  <span>{player.name}</span>
+                  {player.standing != null && <strong>#{player.standing}</strong>}
+                </button>
+              ))}
+            </div>
+
             {selectedPlayer && (
-              <button type="button" className="event-ghost-btn" onClick={clearPlayer}>
-                Clear
-              </button>
+              <div className="event-player-summary">
+                <div>
+                  <span className="event-kicker">Selected</span>
+                  <strong>{selectedPlayer.name}</strong>
+                </div>
+                <div className="event-player-stat-grid">
+                  <span>
+                    Standing
+                    <strong>
+                      {selectedStanding ? `#${selectedStanding.standing}` : "-"}
+                    </strong>
+                  </span>
+                  <span>
+                    Points
+                    <strong>{selectedStanding?.points ?? "-"}</strong>
+                  </span>
+                  <span>
+                    Win
+                    <strong>
+                      {formatPercent(
+                        selectedStanding?.successRate ?? selectedStanding?.winRate
+                      )}
+                    </strong>
+                  </span>
+                </div>
+              </div>
             )}
-          </div>
 
-          <div className="event-search-row">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="event-search-input"
-              placeholder="Player name"
-              autoComplete="off"
+            {selectedTable && (
+              <div className="event-my-table">
+                <span className="event-kicker">Current table</span>
+                <EventTableCard
+                  table={selectedTable}
+                  selected
+                  onCopy={handleCopyTable}
+                />
+              </div>
+            )}
+
+            {selectedPlayer && !selectedTable && (
+              <p className="event-muted-line">
+                No active table found for {selectedPlayer.name}.
+              </p>
+            )}
+          </section>
+
+          <div id="round-tools" className="event-tool-grid">
+            <ResultSlipHelper
+              selectedPlayer={selectedPlayer}
+              selectedTable={selectedTable}
+              localResult={localResult}
+              onChange={setLocalResult}
+            />
+            <ReminderPanel state={state} />
+          </div>
+        </RoleWorkflowSection>
+
+        <RoleWorkflowSection
+          id="help-workflow"
+          tabId="help"
+          activeTab={playerActiveTab}
+          viewMode={playerViewMode}
+        >
+          <div id="judge">
+            <PlayerJudgeCallForm
+              tid={tid}
+              selectedPlayer={selectedPlayer}
+              selectedTable={selectedTable}
             />
           </div>
 
-          <div className="event-player-matches">
-            {searchMatches.map((player) => (
-              <button
-                key={player.id}
-                type="button"
-                className={`event-player-chip ${
-                  player.id === selectedPlayer?.id ? "selected" : ""
-                }`}
-                onClick={() => selectPlayer(player)}
-              >
-                <span>{player.name}</span>
-                {player.standing != null && <strong>#{player.standing}</strong>}
-              </button>
-            ))}
-          </div>
-
-          {selectedPlayer && (
-            <div className="event-player-summary">
-              <div>
-                <span className="event-kicker">Selected</span>
-                <strong>{selectedPlayer.name}</strong>
-              </div>
-              <div className="event-player-stat-grid">
-                <span>
-                  Standing
-                  <strong>
-                    {selectedStanding ? `#${selectedStanding.standing}` : "-"}
-                  </strong>
-                </span>
-                <span>
-                  Points
-                  <strong>{selectedStanding?.points ?? "-"}</strong>
-                </span>
-                <span>
-                  Win
-                  <strong>
-                    {formatPercent(
-                      selectedStanding?.successRate ?? selectedStanding?.winRate
-                    )}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          )}
-
-          {selectedTable && (
-            <div className="event-my-table">
-              <span className="event-kicker">Current table</span>
-              <EventTableCard
-                table={selectedTable}
-                selected
-                onCopy={handleCopyTable}
-              />
-            </div>
-          )}
-
-          {selectedPlayer && !selectedTable && (
-            <p className="event-muted-line">
-              No active table found for {selectedPlayer.name}.
-            </p>
-          )}
-        </section>
-
-        <div id="judge">
-          <PlayerJudgeCallForm
+          <PlayerHelpDeskForm
             tid={tid}
             selectedPlayer={selectedPlayer}
             selectedTable={selectedTable}
           />
-        </div>
 
-        <PlayerHelpDeskForm
-          tid={tid}
-          selectedPlayer={selectedPlayer}
-          selectedTable={selectedTable}
-        />
-
-        <div id="tools" className="event-tool-grid">
-          <ResultSlipHelper
-            selectedPlayer={selectedPlayer}
-            selectedTable={selectedTable}
-            localResult={localResult}
-            onChange={setLocalResult}
-          />
-          <CommanderLookup tid={tid} commanderCandidates={commanderCandidates} />
-        </div>
-
-        <ReminderPanel state={state} />
-
-        <section id="pairings" className="event-panel">
-          <div className="event-panel-header">
-            <h2>Pairings</h2>
-            <span className="event-count-pill">{state.tables.length}</span>
+          <div id="tools">
+            <CommanderLookup tid={tid} commanderCandidates={commanderCandidates} />
           </div>
+        </RoleWorkflowSection>
 
-          <div className="event-filter-row">
-            {[
-              ["all", `All ${state.tables.length}`],
-              ["active", `Active ${activeCount}`],
-              ["pending", `Pending ${pendingCount}`],
-              ["completed", `Done ${completedCount}`],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={`event-filter-btn ${
-                  tableFilter === key ? "active" : ""
-                }`}
-                onClick={() => setTableFilter(key as TableStatusFilter)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <RoleWorkflowSection
+          id="pairings-workflow"
+          tabId="pairings"
+          activeTab={playerActiveTab}
+          viewMode={playerViewMode}
+        >
+          <section id="pairings-list" className="event-panel">
+            <div className="event-panel-header">
+              <h2>Pairings</h2>
+              <span className="event-count-pill">{state.tables.length}</span>
+            </div>
 
-          <div className="event-table-grid">
-            {filteredTables.map((table) => (
-              <EventTableCard
-                key={String(table.table)}
-                table={table}
-                selected={selectedTable?.table === table.table}
-                onCopy={handleCopyTable}
-              />
-            ))}
-          </div>
-          {filteredTables.length === 0 && (
-            <p className="event-muted-line">No tables match the current filter.</p>
-          )}
-          {copyMessage && <div className="event-copy-toast">{copyMessage}</div>}
-        </section>
-
-        <section id="standings" className="event-panel">
-          <div className="event-panel-header">
-            <h2>Standings</h2>
-            <Link href={`/analytics/${tid}`} className="event-ghost-link">
-              Analytics
-            </Link>
-          </div>
-
-          {state.standings.length > 0 ? (
-            <div className="event-standings-list">
-              {state.standings.slice(0, 16).map((standing) => (
-                <div
-                  key={standing.id}
-                  className={`event-standing-row ${
-                    selectedPlayer &&
-                    (standing.id === selectedPlayer.id ||
-                      normalize(standing.name) === normalize(selectedPlayer.name))
-                      ? "selected"
-                      : ""
+            <div className="event-filter-row">
+              {[
+                ["all", `All ${state.tables.length}`],
+                ["active", `Active ${activeCount}`],
+                ["pending", `Pending ${pendingCount}`],
+                ["completed", `Done ${completedCount}`],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`event-filter-btn ${
+                    tableFilter === key ? "active" : ""
                   }`}
+                  onClick={() => setTableFilter(key as TableStatusFilter)}
                 >
-                  <span className="event-standing-rank">#{standing.standing}</span>
-                  <span className="event-standing-name">{standing.name}</span>
-                  <strong>{standing.points}</strong>
-                  <span>{formatPercent(standing.successRate ?? standing.winRate)}</span>
-                </div>
+                  {label}
+                </button>
               ))}
             </div>
-          ) : (
-            <p className="event-muted-line">Standings will appear after round 1.</p>
-          )}
-        </section>
 
-        <PublicFloorMap tid={tid} selectedTable={selectedTable} />
-
-        {state.location && (
-          <section id="parking" className="event-parking-wrap">
-            <ParkingSection tid={tid} location={state.location} />
+            <div className="event-table-grid">
+              {filteredTables.map((table) => (
+                <EventTableCard
+                  key={String(table.table)}
+                  table={table}
+                  selected={selectedTable?.table === table.table}
+                  onCopy={handleCopyTable}
+                />
+              ))}
+            </div>
+            {filteredTables.length === 0 && (
+              <p className="event-muted-line">No tables match the current filter.</p>
+            )}
+            {copyMessage && <div className="event-copy-toast">{copyMessage}</div>}
           </section>
-        )}
+
+          <section id="standings" className="event-panel">
+            <div className="event-panel-header">
+              <h2>Standings</h2>
+              <Link href={`/analytics/${tid}`} className="event-ghost-link">
+                Analytics
+              </Link>
+            </div>
+
+            {state.standings.length > 0 ? (
+              <div className="event-standings-list">
+                {state.standings.slice(0, 16).map((standing) => (
+                  <div
+                    key={standing.id}
+                    className={`event-standing-row ${
+                      selectedPlayer &&
+                      (standing.id === selectedPlayer.id ||
+                        normalize(standing.name) === normalize(selectedPlayer.name))
+                        ? "selected"
+                        : ""
+                    }`}
+                  >
+                    <span className="event-standing-rank">#{standing.standing}</span>
+                    <span className="event-standing-name">{standing.name}</span>
+                    <strong>{standing.points}</strong>
+                    <span>{formatPercent(standing.successRate ?? standing.winRate)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="event-muted-line">Standings will appear after round 1.</p>
+            )}
+          </section>
+        </RoleWorkflowSection>
+
+        <RoleWorkflowSection
+          id="venue-workflow"
+          tabId="venue"
+          activeTab={playerActiveTab}
+          viewMode={playerViewMode}
+        >
+          <PublicFloorMap tid={tid} selectedTable={selectedTable} />
+
+          {state.location && (
+            <section id="parking" className="event-parking-wrap">
+              <ParkingSection tid={tid} location={state.location} />
+            </section>
+          )}
+        </RoleWorkflowSection>
       </main>
     </div>
   );

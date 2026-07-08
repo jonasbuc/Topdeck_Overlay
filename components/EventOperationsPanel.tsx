@@ -100,7 +100,7 @@ export function EventOperationsPanel({ tid }: Props) {
   );
 }
 
-function AnnouncementComposer({ tid }: Props) {
+export function AnnouncementComposer({ tid }: Props) {
   const [announcements, setAnnouncements] = useState<TournamentAnnouncementDTO[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -272,7 +272,7 @@ function AnnouncementComposer({ tid }: Props) {
   );
 }
 
-function ShareQrPanel({ tid }: Props) {
+export function ShareQrPanel({ tid }: Props) {
   const [origin, setOrigin] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -333,7 +333,7 @@ function ShareQrPanel({ tid }: Props) {
   );
 }
 
-function JudgeQueuePanel({ tid }: Props) {
+export function JudgeQueuePanel({ tid }: Props) {
   const [calls, setCalls] = useState<JudgeCallDTO[]>([]);
   const [includeResolved, setIncludeResolved] = useState(false);
 
@@ -522,7 +522,7 @@ function JudgeQueuePanel({ tid }: Props) {
   );
 }
 
-function FloorMapEditor({ tid }: Props) {
+export function FloorMapEditor({ tid }: Props) {
   const [title, setTitle] = useState("Venue floor map");
   const [notes, setNotes] = useState("");
   const [zones, setZones] = useState<FloorMapZone[]>([]);
