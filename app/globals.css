@@ -283,6 +283,7 @@ body {
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -6576,11 +6577,12 @@ body:has(.venue-layout-body) {
   }
 
   .role-status-card {
-    min-height: auto;
+    min-height: 0;
   }
 
   .role-status-card p {
     -webkit-line-clamp: 1;
+    line-clamp: 1;
   }
 
   .role-alert {
